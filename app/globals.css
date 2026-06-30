@@ -1,0 +1,220 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* MapLibre GL JS styles */
+@import 'maplibre-gl/dist/maplibre-gl.css';
+
+/* ── CSS variables ───────────────────────────────────────────────────────────── */
+:root {
+  --color-paper:    #F7F5EF;
+  --color-ink:      #1B1B18;
+  --color-teal:     #0F6E56;
+  --color-live:     #D85A30;
+  --color-upcoming: #1D9E75;
+  --color-hairline: #E4E1D8;
+}
+
+html,
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Map event pins ──────────────────────────────────────────────────────────── */
+.event-pin {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2.5px solid white;
+  cursor: pointer;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.22);
+  transition: transform 0.15s ease;
+}
+
+.event-pin:hover {
+  transform: scale(1.35);
+  z-index: 10;
+}
+
+.event-pin--live {
+  background-color: var(--color-live);
+}
+
+.event-pin--live::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid var(--color-live);
+  animation: pin-pulse 1.8s ease-out infinite;
+  pointer-events: none;
+}
+
+.event-pin--upcoming {
+  background-color: var(--color-upcoming);
+}
+
+.event-pin--past {
+  background-color: #9CA3AF;
+  opacity: 0.4;
+}
+
+@keyframes pin-pulse {
+  0%   { transform: scale(0.7); opacity: 0.9; }
+  100% { transform: scale(2.4); opacity: 0;   }
+}
+
+/* ── MapLibre control overrides ─────────────────────────────────────────────── */
+.maplibregl-ctrl-attrib {
+  font-size: 10px !important;
+  background: rgba(247, 245, 239, 0.8) !important;
+}
+
+.maplibregl-ctrl-group {
+  border-radius: 10px !important;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14) !important;
+  border: 1px solid var(--color-hairline) !important;
+}
+
+.maplibregl-ctrl-group button {
+  background-color: var(--color-paper) !important;
+  color: var(--color-ink) !important;
+}
+
+.maplibregl-ctrl-group button:hover {
+  background-color: var(--color-hairline) !important;
+}
+
+/* ── Drawer animation ────────────────────────────────────────────────────────── */
+.drawer-enter {
+  transform: translateY(100%);
+  opacity: 0;
+}
+.drawer-enter-active {
+  transform: translateY(0);
+  opacity: 1;
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.28s ease;
+}
+.drawer-exit {
+  transform: translateY(0);
+  opacity: 1;
+}
+.drawer-exit-active {
+  transform: translateY(100%);
+  opacity: 0;
+  transition: transform 0.22s ease-in, opacity 0.22s ease-in;
+}
+
+/* ── Isometric 3D building typography ────────────────────────────────────────── */
+/* Rendered as an HTML overlay anchored to the venue's building, shown only when a
+   venue is clicked and the camera tilts. Block letters with a paper face, ink
+   outline, and a brand-color extrusion stacked down-right for the isometric look. */
+.iso-stage {
+  position: absolute;
+  z-index: 15;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  transform-origin: center bottom;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  --iso: var(--color-upcoming);
+  --iso-dark: #136b4f;
+}
+.iso-stage.is-visible { opacity: 1; }
+
+.iso-stage__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateY(18px) scale(0.94);
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.iso-stage.is-visible .iso-stage__inner { transform: translateY(0) scale(1); }
+
+.iso-kicker {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--iso);
+  margin-bottom: 7px;
+  text-shadow: 0 1px 3px rgba(247, 245, 239, 0.95), 0 0 1px rgba(247, 245, 239, 1);
+}
+
+.iso-title {
+  font-weight: 900;
+  font-size: clamp(22px, 3.2vw, 38px);
+  line-height: 0.9;
+  letter-spacing: -0.025em;
+  text-transform: uppercase;
+  text-align: center;
+  max-width: 14ch;
+  color: var(--color-paper);
+  -webkit-text-stroke: 1.4px var(--color-ink);
+  transform: skewX(-13deg) skewY(3deg);
+  text-shadow:
+    1px 1.4px 0 var(--iso),
+    2px 2.8px 0 var(--iso),
+    3px 4.2px 0 var(--iso),
+    4px 5.6px 0 var(--iso),
+    5px 7px 0 var(--iso-dark),
+    6px 8.4px 0 var(--iso-dark),
+    8px 13px 22px rgba(27, 27, 24, 0.42);
+}
+
+.iso-art {
+  margin-top: 4px;
+  margin-bottom: 2px;
+  animation: iso-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes iso-rise {
+  from { transform: translateY(10px) scale(0.92); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.iso-meta {
+  margin-top: 14px;
+  background: rgba(247, 245, 239, 0.94);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--color-hairline);
+  border-radius: 11px;
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink);
+  box-shadow: 0 6px 18px rgba(27, 27, 24, 0.16);
+  white-space: nowrap;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.iso-anchor {
+  margin-top: 8px;
+  width: 2px;
+  height: 24px;
+  background: linear-gradient(var(--iso), rgba(0, 0, 0, 0));
+}
+.iso-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--iso);
+  border: 2.5px solid var(--color-paper);
+  box-shadow: 0 2px 9px rgba(27, 27, 24, 0.35);
+}
+
+@keyframes toast-in {
+  from { transform: translateY(-8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-hairline); border-radius: 2px; }

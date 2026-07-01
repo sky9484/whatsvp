@@ -19,6 +19,8 @@ export interface RawEvent {
   building_key?: string | null;
   /** Community-uploaded building photo → isometric card. */
   building_image_url?: string | null;
+  /** Guild this event belongs to, if any. */
+  guild_id?: string | null;
 }
 
 export interface Event extends RawEvent {
@@ -45,12 +47,37 @@ export interface TransitInfo {
   realtime?: boolean;       // true if a live feed confirmed it (rapid-rail-kl has none)
 }
 
+export interface Guild {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string | null;
+  logo_url?: string | null;
+  banner_url?: string | null;
+  color?: string | null;
+  owner_id?: string | null;
+  badge_type?: string | null;
+  is_verified?: boolean;
+  created_at: string;
+  // Optionally joined:
+  member_count?: number;
+}
+
+export interface GuildMember {
+  guild_id: string;
+  profile_id: string;
+  role: 'owner' | 'admin' | 'member';
+  joined_at: string;
+  profiles?: { display_name: string; avatar_url?: string | null } | null;
+}
+
 export interface Group {
   id: string;
   name: string;
   description?: string | null;
   color?: string | null;
   owner_id?: string | null;
+  guild_id?: string | null;
   created_at: string;
 }
 

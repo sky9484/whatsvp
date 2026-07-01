@@ -4,12 +4,13 @@ import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 
 interface HeaderProps {
+  onGuilds: () => void;
   onOrganize: () => void;
   onChat: () => void;
   onOpenSettings: () => void;
 }
 
-export default function Header({ onOrganize, onChat, onOpenSettings }: HeaderProps) {
+export default function Header({ onGuilds, onOrganize, onChat, onOpenSettings }: HeaderProps) {
   const { isAuthed, address, profile, status, login } = useAuth();
   const { theme, toggle } = useTheme();
 
@@ -32,6 +33,12 @@ export default function Header({ onOrganize, onChat, onOpenSettings }: HeaderPro
           }
         >
           how
+        </button>
+        <button
+          className="text-ink/60 hover:text-ink active:scale-95 transition-all"
+          onClick={onGuilds}
+        >
+          guilds
         </button>
         <button
           className="text-ink/60 hover:text-ink active:scale-95 transition-all"

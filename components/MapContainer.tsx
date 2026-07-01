@@ -9,6 +9,8 @@ import EventPopup from './EventPopup';
 import OrganizeDrawer from './OrganizeDrawer';
 import SettingsDrawer from './SettingsDrawer';
 import ChatDrawer from './ChatDrawer';
+import GuildsDrawer from './GuildsDrawer';
+import type { Guild } from '@/lib/types';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
@@ -37,6 +39,8 @@ export default function MapContainer() {
   const [organizeOpen, setOrganizeOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [guildsOpen, setGuildsOpen] = useState(false);
+  const [guildFilter, setGuildFilter] = useState<Guild | null>(null);
   const [geolocateTrigger, setGeolocateTrigger] = useState(0);
   const [buildingFocus, setBuildingFocus] = useState<BuildingFocus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,10 +91,21 @@ export default function MapContainer() {
     return () => clearInterval(interval);
   }, []);
 
-  const visibleEvents = useMemo(
-    () => filterEvents(allEvents, filter, searchQuery),
-    [allEvents, filter, searchQuery]
-  );
+  const visibleEvents = useMemo(() => {
+    // When a guild is selected, show ALL of its events (the guild API already
+    // time-bounds them) — bypass the status/search filters so none are dropped.
+    if (guildFilter) return allEvents.filter((e) => e.guild_id === guildFilter.id);
+    return filterEvents(allEvents, filter, searchQuery);
+  }, [allEvents, filter, searchQuery, guildFilter]);
+
+  // Merge a guild's events into the map (they may not be in the main feed) and focus on them.
+  const handleShowGuildEvents = useCallback((guild: Guild, guildEvents: Event[]) => {
+    setAllEvents((prev) => {
+      const ids = new Set(guildEvents.map((e) => e.id));
+      return [...prev.filter((e) => !ids.has(e.id)), ...guildEvents];
+    });
+    setGuildFilter(guild);
+  }, []);
 
   const eventCounts = useMemo(() => ({
     all:      allEvents.filter((e) => e.status !== 'past').length,
@@ -144,10 +159,28 @@ export default function MapContainer() {
 
       {/* Top header */}
       <Header
+        onGuilds={() => setGuildsOpen(true)}
         onOrganize={handleOrganize}
         onChat={handleChat}
         onOpenSettings={() => setSettingsOpen(true)}
       />
+
+      {/* Active guild filter chip */}
+      {guildFilter && (
+        <div className="absolute top-[72px] left-1/2 -translate-x-1/2 z-30 sm:left-auto sm:right-4 sm:translate-x-0">
+          <button
+            onClick={() => setGuildFilter(null)}
+            className="inline-flex items-center gap-2 bg-paper/95 backdrop-blur-md rounded-full pl-2 pr-3 py-1.5 border shadow-lg text-sm"
+            style={{ borderColor: guildFilter.color ?? '#1D9E75' }}
+          >
+            <span className="w-5 h-5 rounded-md flex items-center justify-center text-white text-[10px] font-bold" style={{ backgroundColor: guildFilter.color ?? '#1D9E75' }}>
+              {guildFilter.name[0]?.toUpperCase()}
+            </span>
+            <span className="font-medium text-ink">{guildFilter.name}</span>
+            <span className="text-ink/40">×</span>
+          </button>
+        </div>
+      )}
 
       {/* Filter / search card */}
       <FilterCard
@@ -252,6 +285,13 @@ export default function MapContainer() {
       <ChatDrawer
         isOpen={chatOpen}
         onClose={() => setChatOpen(false)}
+      />
+
+      {/* Guilds drawer (directory + guild home + create) */}
+      <GuildsDrawer
+        isOpen={guildsOpen}
+        onClose={() => setGuildsOpen(false)}
+        onShowGuildEvents={handleShowGuildEvents}
       />
     </div>
   );

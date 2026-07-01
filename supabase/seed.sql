@@ -75,3 +75,20 @@ VALUES
    2.9220, 101.6550,
    now() + interval '1 day', now() + interval '1 day 3 hours', 'mdec')
 ON CONFLICT (luma_url) DO NOTHING;
+
+-- Seed guild (requires 004_guilds.sql). Owner filled in on first real login.
+INSERT INTO guilds (slug, name, description, color, is_verified)
+VALUES ('kl-builders', 'KL Builders',
+        'The founding guild of the Kuala Lumpur builder & founder scene.',
+        '#0F6E56', true)
+ON CONFLICT (slug) DO NOTHING;
+
+-- Attach the landmark + demo events to the founding guild
+UPDATE events
+SET guild_id = (SELECT id FROM guilds WHERE slug = 'kl-builders')
+WHERE luma_url IN (
+  'https://lu.ma/seed-klcc-tower',
+  'https://lu.ma/seed-millerz',
+  'https://lu.ma/seed-mdec',
+  'https://lu.ma/seed-klcc-demo'
+);

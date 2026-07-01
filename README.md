@@ -19,6 +19,17 @@ Builder-first, KL-first. The map is the product.
 | **6** | Top-up (USDC on Sui via Enoki — interface only) | ✅ Built (interface only) |
 | + | **RSVP**, share, add-to-calendar, premium event card | ✅ Built |
 
+### v2 upgrades
+
+| # | Scope | State |
+|---|---|---|
+| **1** | Light/dark theme + theme-aware map (light/dark basemap), pin **clustering**, live-presence glow | ✅ Built |
+| 2 | Guilds (community homes: roster, events, chat, badge) | ⏳ |
+| 3 | Sui Move identity (soulbound Builder ID) + cosmetic Avatars (Kiosk) + GuildBadge, all Enoki-sponsored | ⏳ |
+| 4 | External-collection PFP verification (opt-in, read-only EVM) | ⏳ |
+
+**Theming** ([lib/theme.tsx](lib/theme.tsx)): class-based dark mode with a no-flash inline script; colours are CSS variables (`--paper`, `--ink`, …) so every Tailwind utility flips automatically. The map swaps between MapTiler `streets-v2` / `streets-v2-dark` (or CARTO Positron / Dark Matter without a key) on toggle, re-adding the pin + 3D-building layers on the new style. Events render from a **clustered GeoJSON source** (`ev-clusters` / `ev-unclustered`), with an animated coral glow on live pins.
+
 ---
 
 ## Tech stack

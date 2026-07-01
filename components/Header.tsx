@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/auth';
+import { useTheme } from '@/lib/theme';
 
 interface HeaderProps {
   onOrganize: () => void;
@@ -10,6 +11,7 @@ interface HeaderProps {
 
 export default function Header({ onOrganize, onChat, onOpenSettings }: HeaderProps) {
   const { isAuthed, address, profile, status, login } = useAuth();
+  const { theme, toggle } = useTheme();
 
   const initial =
     profile?.display_name?.trim()?.[0]?.toUpperCase() ?? 'B';
@@ -45,8 +47,26 @@ export default function Header({ onOrganize, onChat, onOpenSettings }: HeaderPro
         </button>
       </nav>
 
-      {/* Auth */}
-      <div className="flex-none">
+      {/* Auth + theme */}
+      <div className="flex-none flex items-center gap-2">
+        <button
+          onClick={toggle}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+          title="Toggle theme"
+          className="w-8 h-8 rounded-full bg-ink/[0.06] hover:bg-ink/10 active:scale-90
+                     flex items-center justify-center text-ink/70 transition-all"
+        >
+          {theme === 'dark' ? (
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 3v2m0 14v2m9-9h-2M5 12H3m14.66-6.66l-1.41 1.41M7.75 16.25l-1.41 1.41m0-11.32l1.41 1.41m8.5 8.5l1.41 1.41" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+              <circle cx="12" cy="12" r="4" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+          )}
+        </button>
         {address ? (
           // Logged-in chip — shows a friendly identity, NEVER the wallet address.
           <button

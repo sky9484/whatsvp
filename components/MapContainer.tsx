@@ -159,6 +159,21 @@ export default function MapContainer() {
         eventCounts={eventCounts}
       />
 
+      {/* Live-presence indicator */}
+      {eventCounts.live > 0 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+          <span className="inline-flex items-center gap-2 bg-paper/90 backdrop-blur-md rounded-full pl-2.5 pr-3.5 py-1.5 border border-hairline shadow-lg">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-live opacity-70 animate-ping" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-live" />
+            </span>
+            <span className="text-[13px] font-medium text-ink">
+              {eventCounts.live} {eventCounts.live === 1 ? 'spot' : 'spots'} live now
+            </span>
+          </span>
+        </div>
+      )}
+
       {/* Demo-data badge (shown until Supabase is configured) */}
       {demoMode && (
         <div className="absolute bottom-4 left-4 z-20 pointer-events-none">

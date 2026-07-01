@@ -12,6 +12,7 @@ import { isEnokiNetwork, registerEnokiWallets } from '@mysten/enoki';
 import { networkConfig, SUI_NETWORK } from '@/lib/sui';
 import { AuthProvider } from '@/lib/auth';
 import { ToastProvider } from '@/lib/toast';
+import { ThemeProvider } from '@/lib/theme';
 
 /** Registers Enoki-backed wallets (Google zkLogin) into the dapp-kit wallet list. */
 function RegisterEnokiWallets() {
@@ -46,15 +47,17 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <SuiClientProvider networks={networkConfig} defaultNetwork={SUI_NETWORK}>
-        <RegisterEnokiWallets />
-        <WalletProvider autoConnect>
-          <ToastProvider>
-            <AuthProvider>{children}</AuthProvider>
-          </ToastProvider>
-        </WalletProvider>
-      </SuiClientProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <SuiClientProvider networks={networkConfig} defaultNetwork={SUI_NETWORK}>
+          <RegisterEnokiWallets />
+          <WalletProvider autoConnect>
+            <ToastProvider>
+              <AuthProvider>{children}</AuthProvider>
+            </ToastProvider>
+          </WalletProvider>
+        </SuiClientProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }

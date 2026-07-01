@@ -1,6 +1,12 @@
 import type { Config } from 'tailwindcss';
 
+// Colours are driven by CSS variables (space-separated RGB channels) defined in
+// globals.css, so every `bg-paper` / `text-ink` / `border-hairline` utility flips
+// automatically in dark mode. Alpha modifiers (e.g. `bg-ink/[0.06]`) still work.
+const withVar = (v: string) => `rgb(var(${v}) / <alpha-value>)`;
+
 const config: Config = {
+  darkMode: 'class',
   content: [
     './app/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
@@ -9,12 +15,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        paper: '#F7F5EF',
-        ink: '#1B1B18',
-        teal: '#0F6E56',
-        live: '#D85A30',
-        upcoming: '#1D9E75',
-        hairline: '#E4E1D8',
+        paper: withVar('--paper'),
+        ink: withVar('--ink'),
+        teal: withVar('--teal'),
+        live: withVar('--live'),
+        upcoming: withVar('--upcoming'),
+        hairline: withVar('--hairline'),
       },
       fontFamily: {
         sans: [

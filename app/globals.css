@@ -6,13 +6,36 @@
 @import 'maplibre-gl/dist/maplibre-gl.css';
 
 /* ── CSS variables ───────────────────────────────────────────────────────────── */
+/* Space-separated RGB channels drive the Tailwind theme colours; `--color-*`
+   aliases keep the raw CSS below (pins, iso, drawers) theme-aware for free. */
 :root {
-  --color-paper:    #F7F5EF;
-  --color-ink:      #1B1B18;
-  --color-teal:     #0F6E56;
-  --color-live:     #D85A30;
-  --color-upcoming: #1D9E75;
-  --color-hairline: #E4E1D8;
+  --paper: 247 245 239;
+  --ink: 27 27 24;
+  --teal: 15 110 86;
+  --live: 216 90 48;
+  --upcoming: 29 158 117;
+  --hairline: 228 225 216;
+  color-scheme: light;
+}
+
+.dark {
+  --paper: 22 22 20;        /* warm near-black */
+  --ink: 237 234 226;       /* off-white */
+  --teal: 42 194 150;       /* brighter for dark bg */
+  --live: 233 116 74;       /* coral, luminance-lifted */
+  --upcoming: 46 197 146;   /* teal-green, luminance-lifted */
+  --hairline: 58 56 51;
+  color-scheme: dark;
+}
+
+:root,
+.dark {
+  --color-paper: rgb(var(--paper));
+  --color-ink: rgb(var(--ink));
+  --color-teal: rgb(var(--teal));
+  --color-live: rgb(var(--live));
+  --color-upcoming: rgb(var(--upcoming));
+  --color-hairline: rgb(var(--hairline));
 }
 
 html,
@@ -21,6 +44,7 @@ body {
   color: var(--color-ink);
   font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* ── Map event pins ──────────────────────────────────────────────────────────── */

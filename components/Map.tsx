@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { Event } from '@/lib/types';
+import { useTheme } from '@/lib/theme';
 import IsoBuilding, { IsoPhotoBuilding, type BuildingKey } from './IsoBuilding';
 
 const KL_CENTER: [number, number] = [101.6953, 3.1478];
 const KL_ZOOM = 13;
 const BUILDINGS_LAYER_ID = 'whatsvp-3d-buildings';
+const SRC = 'events';
 
 export interface BuildingFocus {
   lat: number;
@@ -15,17 +17,14 @@ export interface BuildingFocus {
   title: string;
   status: Event['status'];
   meta?: string;
-  /** A hand-authored landmark design key, if this venue is a known building. */
   design?: BuildingKey | null;
-  /** A user-uploaded building photo (community-generated isometric card). */
   imageUrl?: string | null;
 }
 
 interface MapProps {
   events: Event[];
   onEventSelect: (event: Event) => void;
-  geolocateTrigger?: number; // bump this number to trigger "near me"
-  /** Set (a fresh object) to fly to + tilt over a venue's building. Null resets the view. */
+  geolocateTrigger?: number;
   buildingFocus?: BuildingFocus | null;
 }
 
@@ -35,44 +34,47 @@ const ISO_COLORS: Record<Event['status'], { side: string; dark: string }> = {
   past: { side: '#9CA3AF', dark: '#6b7280' },
 };
 
-/**
- * Adds a fill-extrusion layer so OSM buildings render in 3D. Works only on a
- * vector basemap (MapTiler) — the CARTO raster fallback can't extrude, so this
- * detects the building source-layer from the loaded style and no-ops otherwise.
- */
+// Map layer palette per theme (concrete colours — MapLibre paint can't read CSS vars)
+const PIN = {
+  light: { live: '#D85A30', upcoming: '#1D9E75', past: '#B4ADA0', stroke: '#F7F5EF', cluster: '#0F6E56', clusterText: '#F7F5EF' },
+  dark: { live: '#E9744A', upcoming: '#2EC592', past: '#6b6a64', stroke: '#161614', cluster: '#2AC296', clusterText: '#0d0d0c' },
+};
+
+function styleUrl(theme: 'light' | 'dark'): string {
+  const key = process.env.NEXT_PUBLIC_MAPTILER_KEY;
+  if (key) {
+    const style = theme === 'dark' ? 'streets-v2-dark' : 'streets-v2';
+    return `https://api.maptiler.com/maps/${style}/style.json?key=${key}`;
+  }
+  // Free CARTO fallback (raster: no 3D extrusion, but full clustering + pins)
+  return theme === 'dark'
+    ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+    : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+}
+
+function eventsToGeoJSON(events: Event[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: events.map((e) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [e.lng, e.lat] },
+      properties: { id: e.id, status: e.status },
+    })),
+  };
+}
+
+/** 3D fill-extrusion buildings (vector styles only; no-ops on raster). */
 function add3DBuildings(map: maplibregl.Map) {
   if (map.getLayer(BUILDINGS_LAYER_ID)) return;
-
-  const style = map.getStyle();
-  const layers = style?.layers ?? [];
-
-  // If the style already ships a 3D building layer, leave it alone.
+  const layers = map.getStyle()?.layers ?? [];
   if (layers.some((l) => l.type === 'fill-extrusion')) return;
-
-  // Find the vector source that exposes a 'building' source-layer by reusing
-  // whatever 2D building layer the style already has.
   const buildingLayer = layers.find(
     (l) => 'source-layer' in l && l['source-layer'] === 'building' && 'source' in l && l.source
   ) as (maplibregl.LayerSpecification & { source: string }) | undefined;
-
-  if (!buildingLayer) return; // raster / no building data → nothing to extrude
-
-  // Insert below the first symbol (label) layer so place names stay on top.
+  if (!buildingLayer) return;
   const firstSymbolId = layers.find((l) => l.type === 'symbol')?.id;
-
-  const height: maplibregl.ExpressionSpecification = [
-    'coalesce',
-    ['get', 'render_height'],
-    ['get', 'height'],
-    0,
-  ];
-  const base: maplibregl.ExpressionSpecification = [
-    'coalesce',
-    ['get', 'render_min_height'],
-    ['get', 'min_height'],
-    0,
-  ];
-
+  const height: maplibregl.ExpressionSpecification = ['coalesce', ['get', 'render_height'], ['get', 'height'], 0];
+  const base: maplibregl.ExpressionSpecification = ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0];
   map.addLayer(
     {
       id: BUILDINGS_LAYER_ID,
@@ -81,23 +83,8 @@ function add3DBuildings(map: maplibregl.Map) {
       'source-layer': 'building',
       minzoom: 14,
       paint: {
-        // Warm paper-stone tones, darker as buildings get taller (sense of depth).
-        'fill-extrusion-color': [
-          'interpolate',
-          ['linear'],
-          height,
-          0, '#E4E1D8',
-          40, '#CFC8B8',
-          150, '#ADA593',
-        ],
-        // Grow buildings in as you zoom past 14 → 16 for a smooth reveal.
-        'fill-extrusion-height': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          14, 0,
-          16, height,
-        ],
+        'fill-extrusion-color': ['interpolate', ['linear'], height, 0, '#E4E1D8', 40, '#CFC8B8', 150, '#ADA593'],
+        'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 14, 0, 16, height],
         'fill-extrusion-base': base,
         'fill-extrusion-opacity': 0.9,
       },
@@ -106,104 +93,218 @@ function add3DBuildings(map: maplibregl.Map) {
   );
 }
 
-export default function Map({
-  events,
-  onEventSelect,
-  geolocateTrigger,
-  buildingFocus,
-}: MapProps) {
+/** Add the clustered event source + glow/cluster/pin layers for the given theme. */
+function addPinLayers(map: maplibregl.Map, theme: 'light' | 'dark', data: GeoJSON.FeatureCollection) {
+  const pal = PIN[theme];
+
+  // Only add when missing — data updates happen in the events effect, and a
+  // theme swap removes+re-adds everything fresh via setStyle → styledata.
+  if (map.getSource(SRC)) return;
+  map.addSource(SRC, {
+    type: 'geojson',
+    data,
+    cluster: true,
+    clusterMaxZoom: 14,
+    clusterRadius: 48,
+  });
+
+  const statusColor: maplibregl.ExpressionSpecification = [
+    'match',
+    ['get', 'status'],
+    'live', pal.live,
+    'upcoming', pal.upcoming,
+    pal.past,
+  ];
+
+  // Live-presence glow (animated) — sits under the pins
+  if (!map.getLayer('ev-glow')) {
+    map.addLayer({
+      id: 'ev-glow',
+      type: 'circle',
+      source: SRC,
+      filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'status'], 'live']],
+      paint: {
+        'circle-color': pal.live,
+        'circle-radius': 12,
+        'circle-opacity': 0.4,
+        'circle-blur': 0.7,
+      },
+    });
+  }
+
+  // Cluster bubbles
+  if (!map.getLayer('ev-clusters')) {
+    map.addLayer({
+      id: 'ev-clusters',
+      type: 'circle',
+      source: SRC,
+      filter: ['has', 'point_count'],
+      paint: {
+        'circle-color': pal.cluster,
+        'circle-radius': ['step', ['get', 'point_count'], 18, 10, 24, 30, 32],
+        'circle-opacity': 0.92,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': pal.stroke,
+      },
+    });
+  }
+  if (!map.getLayer('ev-cluster-count')) {
+    map.addLayer({
+      id: 'ev-cluster-count',
+      type: 'symbol',
+      source: SRC,
+      filter: ['has', 'point_count'],
+      layout: {
+        'text-field': ['get', 'point_count_abbreviated'],
+        'text-font': ['Open Sans Bold', 'Noto Sans Bold', 'Open Sans Regular'],
+        'text-size': 13,
+      },
+      paint: { 'text-color': pal.clusterText },
+    });
+  }
+
+  // Un-clustered leaf pins
+  if (!map.getLayer('ev-unclustered')) {
+    map.addLayer({
+      id: 'ev-unclustered',
+      type: 'circle',
+      source: SRC,
+      filter: ['!', ['has', 'point_count']],
+      paint: {
+        'circle-color': statusColor,
+        'circle-radius': 7,
+        'circle-stroke-width': 2.5,
+        'circle-stroke-color': pal.stroke,
+      },
+    });
+  }
+}
+
+export default function Map({ events, onEventSelect, geolocateTrigger, buildingFocus }: MapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const markersRef = useRef<maplibregl.Marker[]>([]);
   const geolocateRef = useRef<maplibregl.GeolocateControl | null>(null);
   const isoRef = useRef<HTMLDivElement>(null);
   const [isoVisible, setIsoVisible] = useState(false);
 
-  const styleUrl = (): string => {
-    const key = process.env.NEXT_PUBLIC_MAPTILER_KEY;
-    if (key) {
-      return `https://api.maptiler.com/maps/streets/style.json?key=${key}`;
-    }
-    // Free fallback — no API key required (raster: no 3D extrusion)
-    return 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
-  };
+  const { theme } = useTheme();
 
-  // Initialise map once
+  // Refs so the persistent styledata handler always reads current values
+  const themeRef = useRef(theme);
+  const eventsRef = useRef(events);
+  const onSelectRef = useRef(onEventSelect);
+  const setupRef = useRef<() => void>(() => {});
+  themeRef.current = theme;
+  eventsRef.current = events;
+  onSelectRef.current = onEventSelect;
+
+  // ── Init map once ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: styleUrl(),
+      style: styleUrl(themeRef.current),
       center: KL_CENTER,
       zoom: KL_ZOOM,
       attributionControl: { compact: true },
       pitchWithRotate: true,
       maxPitch: 70,
     });
+    mapRef.current = map;
+    if (process.env.NODE_ENV !== 'production') {
+      (window as unknown as { __map?: maplibregl.Map }).__map = map;
+    }
 
     const geolocate = new maplibregl.GeolocateControl({
       positionOptions: { enableHighAccuracy: true },
       trackUserLocation: false,
     });
     geolocateRef.current = geolocate;
-
     map.addControl(geolocate, 'bottom-right');
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
 
-    map.on('load', () => add3DBuildings(map));
+    // Re-add layers on initial load AND after every style swap. MapLibre has no
+    // 'style.load' event; the reliable "new style is ready" signal after setStyle
+    // is 'idle'. setupLayers is idempotent (guards on existing source/layers).
+    const setupLayers = () => {
+      if (!map.isStyleLoaded()) {
+        map.once('idle', setupLayers);
+        return;
+      }
+      addPinLayers(map, themeRef.current, eventsToGeoJSON(eventsRef.current));
+      add3DBuildings(map);
+    };
+    setupRef.current = setupLayers;
+    map.on('load', setupLayers);
+    // Safety net: if a style swap drops our source, re-add once it's ready.
+    map.on('styledata', () => {
+      if (!map.getSource(SRC)) map.once('idle', setupLayers);
+    });
 
-    mapRef.current = map;
+    // Interactions
+    map.on('click', 'ev-clusters', (e) => {
+      const feat = map.queryRenderedFeatures(e.point, { layers: ['ev-clusters'] })[0];
+      const clusterId = feat?.properties?.cluster_id;
+      const src = map.getSource(SRC) as maplibregl.GeoJSONSource;
+      if (clusterId == null) return;
+      src.getClusterExpansionZoom(clusterId).then((zoom) => {
+        map.easeTo({ center: (feat.geometry as GeoJSON.Point).coordinates as [number, number], zoom });
+      });
+    });
+    map.on('click', 'ev-unclustered', (e) => {
+      const id = e.features?.[0]?.properties?.id;
+      const ev = eventsRef.current.find((x) => x.id === id);
+      if (ev) onSelectRef.current(ev);
+    });
+    for (const layer of ['ev-clusters', 'ev-unclustered']) {
+      map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
+      map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
+    }
+
+    // Live-presence pulse
+    let raf = 0;
+    const t0 = performance.now();
+    const pulse = (t: number) => {
+      if (map.getLayer('ev-glow')) {
+        const phase = ((t - t0) % 1800) / 1800; // 0..1
+        map.setPaintProperty('ev-glow', 'circle-radius', 10 + phase * 16);
+        map.setPaintProperty('ev-glow', 'circle-opacity', 0.45 * (1 - phase));
+      }
+      raf = requestAnimationFrame(pulse);
+    };
+    raf = requestAnimationFrame(pulse);
 
     return () => {
-      markersRef.current.forEach((m) => m.remove());
-      markersRef.current = [];
+      cancelAnimationFrame(raf);
       map.remove();
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update pins when events change
+  // ── Theme change → swap basemap (layers re-added on style.load) ─────────────
+  const firstThemeRun = useRef(true);
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-
-    const addMarkers = () => {
-      // Clear existing
-      markersRef.current.forEach((m) => m.remove());
-      markersRef.current = [];
-
-      for (const event of events) {
-        const el = document.createElement('div');
-        el.className = `event-pin event-pin--${event.status}`;
-        el.setAttribute('aria-label', event.title);
-        el.setAttribute('role', 'button');
-        el.tabIndex = 0;
-
-        const marker = new maplibregl.Marker({ element: el })
-          .setLngLat([event.lng, event.lat])
-          .addTo(map);
-
-        const handleSelect = () => onEventSelect(event);
-        el.addEventListener('click', handleSelect);
-        el.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' || e.key === ' ') handleSelect();
-        });
-
-        markersRef.current.push(marker);
-      }
-    };
-
-    // If map style is already loaded, add markers immediately; else wait
-    if (map.isStyleLoaded()) {
-      addMarkers();
-    } else {
-      map.once('load', addMarkers);
+    if (firstThemeRun.current) {
+      firstThemeRun.current = false;
+      return; // initial style already correct
     }
-  }, [events, onEventSelect]);
+    map.setStyle(styleUrl(theme));
+    map.once('idle', () => setupRef.current());
+  }, [theme]);
 
-  // Trigger geolocate when parent bumps the counter
+  // ── Update pin data when events change ──────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const src = map.getSource(SRC) as maplibregl.GeoJSONSource | undefined;
+    if (src) src.setData(eventsToGeoJSON(events));
+  }, [events]);
+
+  // ── Geolocate ───────────────────────────────────────────────────────────────
   const prevTriggerRef = useRef(geolocateTrigger);
   useEffect(() => {
     if (geolocateTrigger !== prevTriggerRef.current) {
@@ -212,7 +313,7 @@ export default function Map({
     }
   }, [geolocateTrigger]);
 
-  // Keep the isometric label pinned to the building as the camera moves.
+  // ── Isometric building overlay positioning ──────────────────────────────────
   const positionIso = useCallback(() => {
     const map = mapRef.current;
     const el = isoRef.current;
@@ -226,11 +327,9 @@ export default function Map({
     el.style.visibility = onScreen ? 'visible' : 'hidden';
   }, [buildingFocus]);
 
-  // Fly to + tilt over a building when a venue is focused; reset when cleared.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-
     if (buildingFocus) {
       map.flyTo({
         center: [buildingFocus.lng, buildingFocus.lat],
@@ -243,7 +342,6 @@ export default function Map({
       positionIso();
       map.on('move', positionIso);
       map.on('render', positionIso);
-      // Trigger the rise-in transition on the next frame
       const raf = requestAnimationFrame(() => setIsoVisible(true));
       return () => {
         cancelAnimationFrame(raf);
@@ -252,7 +350,6 @@ export default function Map({
       };
     } else {
       setIsoVisible(false);
-      // Reset to flat overview pitch (keep current center/zoom)
       map.easeTo({ pitch: 0, bearing: 0, duration: 600 });
     }
   }, [buildingFocus, positionIso]);
@@ -261,23 +358,13 @@ export default function Map({
 
   return (
     <div className="absolute inset-0">
-      <div
-        ref={containerRef}
-        className="absolute inset-0 w-full h-full"
-        style={{ touchAction: 'none' }}
-      />
+      <div ref={containerRef} className="absolute inset-0 w-full h-full" style={{ touchAction: 'none' }} />
 
-      {/* Isometric 3D building typography — only while a venue is focused */}
       {buildingFocus && (
         <div
           ref={isoRef}
           className={`iso-stage ${isoVisible ? 'is-visible' : ''}`}
-          style={
-            {
-              '--iso': isoColor?.side,
-              '--iso-dark': isoColor?.dark,
-            } as React.CSSProperties
-          }
+          style={{ '--iso': isoColor?.side, '--iso-dark': isoColor?.dark } as React.CSSProperties}
         >
           <div className="iso-stage__inner">
             <span className="iso-kicker">

@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { withStatus } from '@/lib/utils';
+import { isMoveConfigured, buildMintGuildBadgeTx } from '@/lib/sui-move';
 import type { Guild, GuildMember, Event, RawEvent } from '@/lib/types';
 
 interface GuildsDrawerProps {
@@ -22,6 +24,7 @@ interface GuildDetail {
 export default function GuildsDrawer({ isOpen, onClose, onShowGuildEvents }: GuildsDrawerProps) {
   const { token, profile, address, login } = useAuth();
   const toast = useToast();
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
 
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [query, setQuery] = useState('');
@@ -117,7 +120,15 @@ export default function GuildsDrawer({ isOpen, onClose, onShowGuildEvents }: Gui
         toast.show(data.error ?? 'Action failed', 'error');
         return;
       }
-      toast.show(leave ? 'Left guild' : 'Joined guild — badge minting is sponsored', 'success');
+      toast.show(leave ? 'Left guild' : 'Joined guild', 'success');
+      // On join, mint the soulbound GuildBadge — gasless, sponsored by Enoki.
+      // Best-effort and silent (no crypto UX); no-ops until the package is published.
+      if (!leave && isMoveConfigured()) {
+        signAndExecute(
+          { transaction: buildMintGuildBadgeTx(detail.guild.slug) },
+          { onError: (e) => console.warn('[guild-badge] mint skipped:', e.message) }
+        );
+      }
       await openGuild(detail.guild);
       await loadGuilds();
     } finally {

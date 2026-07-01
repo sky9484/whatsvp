@@ -24,11 +24,17 @@ Builder-first, KL-first. The map is the product.
 | # | Scope | State |
 |---|---|---|
 | **1** | Light/dark theme + theme-aware map (light/dark basemap), pin **clustering**, live-presence glow | ✅ Built |
-| 2 | Guilds (community homes: roster, events, chat, badge) | ⏳ |
-| 3 | Sui Move identity (soulbound Builder ID) + cosmetic Avatars (Kiosk) + GuildBadge, all Enoki-sponsored | ⏳ |
+| **2** | Guilds (community homes: directory, roster, events, join, create) | ✅ Built |
+| **3** | Sui Move identity (soulbound Builder ID) + cosmetic Avatars (Kiosk) + GuildBadge, Enoki-sponsored | 🟡 Authored — publish to testnet to activate |
 | 4 | External-collection PFP verification (opt-in, read-only EVM) | ⏳ |
 
 **Theming** ([lib/theme.tsx](lib/theme.tsx)): class-based dark mode with a no-flash inline script; colours are CSS variables (`--paper`, `--ink`, …) so every Tailwind utility flips automatically. The map swaps between MapTiler `streets-v2` / `streets-v2-dark` (or CARTO Positron / Dark Matter without a key) on toggle, re-adding the pin + 3D-building layers on the new style. Events render from a **clustered GeoJSON source** (`ev-clusters` / `ev-unclustered`), with an animated coral glow on live pins.
+
+**Guilds** ([GuildsDrawer.tsx](components/GuildsDrawer.tsx), migration [004_guilds.sql](supabase/migrations/004_guilds.sql)): a guild is a community's home — directory + search, guild page (banner, roster, events, join), and create. Events carry a `guild_id`; "Show on map" filters the map to a guild. RLS hardened via an adversarial multi-agent review: self-inserts are forced to `role='member'`, and `is_verified`/`badge_type` are service-role-only so the ✓ badge can't be forged.
+
+**Sui Move identity** ([move/whatsvp](move/whatsvp), [lib/sui-move.ts](lib/sui-move.ts)): three modules — `builder_id` (free soulbound Builder ID, one per address), `guild` (soulbound GuildBadge on join), `cosmetics` (tradable Avatar + royalty `TransferPolicy` for Kiosk). The app auto-mints the Builder ID on first login and the GuildBadge on join, **gaslessly via the Enoki wallet** — no crypto UX. Settings shows the Builder ID + owned cosmetics ([/api/avatars/list](app/api/avatars/list/route.ts)).
+
+> **To activate Upgrade 3:** publish `move/whatsvp` to testnet (`sui client publish`) and set `NEXT_PUBLIC_WHATSVP_PACKAGE_ID` + `NEXT_PUBLIC_BUILDER_REGISTRY_ID`. Everything is gated on `isMoveConfigured()`, so without the package IDs the app runs normally and simply skips all on-chain mints. The modules + wiring are authored and type-check, but the Sui toolchain isn't in this build environment, so **publishing and on-chain verification happen on your machine**.
 
 ---
 

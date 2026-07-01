@@ -17,6 +17,29 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
   const [balance, setBalance] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showTopUp, setShowTopUp] = useState(false);
+  const [identity, setIdentity] = useState<{
+    builderId: unknown;
+    cosmetics: unknown[];
+    configured: boolean;
+  } | null>(null);
+
+  // Read on-chain identity (Builder ID + cosmetics) when the drawer opens
+  useEffect(() => {
+    if (!isOpen || !address) return;
+    let cancelled = false;
+    setIdentity(null);
+    fetch(`/api/avatars/list?address=${address}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setIdentity(d);
+      })
+      .catch(() => {
+        if (!cancelled) setIdentity({ builderId: null, cosmetics: [], configured: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, address]);
 
   // Read SUI balance on-chain when the drawer opens
   useEffect(() => {
@@ -155,6 +178,59 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
                     `${balance} SUI`
                   )}
                 </span>
+              </div>
+            </div>
+
+            {/* Identity — free soulbound Builder ID + cosmetic avatars */}
+            <div className="rounded-xl border border-hairline p-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-ink">Your Builder ID</span>
+                {identity?.builderId ? (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-teal/15 text-teal font-medium uppercase">
+                    Minted
+                  </span>
+                ) : (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-ink/10 text-ink/50 font-medium uppercase">
+                    Free
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-ink/50">
+                {identity?.configured === false
+                  ? 'Your free identity mints automatically on first login — no fees, no crypto needed.'
+                  : identity?.builderId
+                  ? 'Your soulbound identity for the KL builder scene.'
+                  : 'Minting your free identity… it lands shortly after you sign in.'}
+              </p>
+
+              {/* Cosmetic avatars (optional, tradable) */}
+              <div className="mt-3 pt-3 border-t border-hairline">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-ink/60">Avatars</span>
+                  <span className="text-[10px] text-ink/40">cosmetic only</span>
+                </div>
+                {identity && identity.cosmetics.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {identity.cosmetics.map((c, i) => {
+                      const display = (c as { display?: { data?: Record<string, string> } })?.display?.data;
+                      const img = display?.image_url;
+                      return (
+                        <span key={i} className="w-10 h-10 rounded-lg overflow-hidden border border-hairline bg-ink/[0.04] flex items-center justify-center">
+                          {img ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={img} alt={display?.name ?? ''} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-ink/30 text-xs">◈</span>
+                          )}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="mt-1.5 text-xs text-ink/40">
+                    No avatars yet — cosmetics are optional and never change your access.
+                  </p>
+                )}
               </div>
             </div>
 

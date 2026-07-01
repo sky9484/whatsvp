@@ -1,0 +1,10 @@
+[package]
+name = "whatsvp"
+edition = "2024.beta"
+# Publish to testnet first, then record the package ID in .env as NEXT_PUBLIC_WHATSVP_PACKAGE_ID.
+
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
+
+[addresses]
+whatsvp = "0x0"

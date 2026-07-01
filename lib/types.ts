@@ -34,6 +34,12 @@ export interface Profile {
   display_name: string;
   avatar_url?: string | null;
   created_at: string;
+  /** Opt-in, read-only-verified external NFT PFP (v2 Upgrade 4). Never required to onboard. */
+  pfp_chain?: string | null;
+  pfp_contract?: string | null;
+  pfp_token_id?: string | null;
+  pfp_image_url?: string | null;
+  pfp_verified_at?: string | null;
 }
 
 export interface TransitInfo {

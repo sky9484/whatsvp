@@ -1,9 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useSuiClient } from '@mysten/dapp-kit';
 import { useAuth } from '@/lib/auth';
 import { shortenAddress, formatSui, SUI_NETWORK } from '@/lib/sui';
+
+// viem (EVM wallet + chain defs) is only needed by this opt-in, power-user
+// feature — load it on demand instead of bundling it into every page load.
+const ExternalPfpLinker = dynamic(() => import('./ExternalPfpLinker'), { ssr: false });
 
 interface SettingsDrawerProps {
   isOpen: boolean;
@@ -280,6 +285,9 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
                 </div>
               )}
             </div>
+
+            {/* External-collection PFP — opt-in, power-user, behind the free identity */}
+            <ExternalPfpLinker />
 
             {/* Logout */}
             <button

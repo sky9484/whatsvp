@@ -82,7 +82,15 @@ export default function Header({ onGuilds, onOrganize, onChat, onOpenSettings }:
                        bg-ink/[0.06] hover:bg-ink/10 transition-colors"
             aria-label="Open settings"
           >
-            {profile?.avatar_url ? (
+            {profile?.pfp_verified_at && profile?.pfp_image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={profile.pfp_image_url}
+                alt=""
+                title="Verified external PFP"
+                className="w-7 h-7 rounded-full object-cover ring-2 ring-teal"
+              />
+            ) : profile?.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={profile.avatar_url}

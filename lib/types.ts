@@ -1,5 +1,6 @@
 export type EventStatus = 'live' | 'upcoming' | 'past';
-export type EventFilter = 'all' | 'live' | 'upcoming';
+/** Time-scrubber segments (v3 Map 2.0) — Live now / Today / Tomorrow / This week / Past 10 days. */
+export type EventFilter = 'live' | 'today' | 'tomorrow' | 'week' | 'past10';
 
 export interface RawEvent {
   id: string;

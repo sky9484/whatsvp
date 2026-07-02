@@ -1,0 +1,174 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Event, TransitInfo } from './types';
+import { useAuth } from './auth';
+import { createClient, createAuthedClient } from './supabase/client';
+import { resolveLandmark } from './buildings';
+
+/**
+ * Shared state + actions for an event's detail view — transit, RSVP, share, and
+ * the community building-photo upload. Used by both EventPopup (desktop card)
+ * and EventSheet (mobile bottom sheet) so the underlying data/logic lives in
+ * exactly one place.
+ */
+export function useEventDetail(event: Event, onBuildingImage?: (url: string) => void) {
+  const { profile, token, address, login } = useAuth();
+  const isLandmark = resolveLandmark(event) !== null;
+
+  const [transit, setTransit] = useState<TransitInfo | null | 'loading'>('loading');
+  const [rsvpCount, setRsvpCount] = useState<number | null>(null);
+  const [going, setGoing] = useState(false);
+  const [rsvpBusy, setRsvpBusy] = useState(false);
+  const [shared, setShared] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState('');
+
+  const anon = useMemo<SupabaseClient | null>(() => createClient(), []);
+  const authed = useMemo<SupabaseClient | null>(() => createAuthedClient(token), [token]);
+
+  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${event.lat},${event.lng}&travelmode=transit`;
+  const wazeUrl = `https://www.waze.com/ul?ll=${event.lat},${event.lng}&navigate=yes`;
+  const calendarUrl = buildCalendarUrl(event);
+
+  // Transit
+  useEffect(() => {
+    setTransit('loading');
+    fetch(`/api/transit?lat=${event.lat}&lng=${event.lng}`)
+      .then((r) => r.json())
+      .then((d) => setTransit(d.transit ?? null))
+      .catch(() => setTransit(null));
+  }, [event.lat, event.lng]);
+
+  // RSVP count + my status
+  useEffect(() => {
+    let cancelled = false;
+    if (anon) {
+      anon
+        .from('event_rsvps')
+        .select('*', { count: 'exact', head: true })
+        .eq('event_id', event.id)
+        .then(({ count }) => {
+          if (!cancelled) setRsvpCount(count ?? 0);
+        });
+    }
+    if (authed && profile) {
+      authed
+        .from('event_rsvps')
+        .select('event_id')
+        .eq('event_id', event.id)
+        .eq('profile_id', profile.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (!cancelled) setGoing(Boolean(data));
+        });
+    } else {
+      setGoing(false);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [event.id, anon, authed, profile]);
+
+  const toggleRsvp = async () => {
+    if (!address) return login(); // gate behind login
+    if (!authed || !profile) return;
+    setRsvpBusy(true);
+    const next = !going;
+    // optimistic
+    setGoing(next);
+    setRsvpCount((c) => (c ?? 0) + (next ? 1 : -1));
+    const q = next
+      ? authed.from('event_rsvps').insert({ event_id: event.id, profile_id: profile.id })
+      : authed.from('event_rsvps').delete().eq('event_id', event.id).eq('profile_id', profile.id);
+    const { error } = await q;
+    if (error) {
+      // revert
+      setGoing(!next);
+      setRsvpCount((c) => (c ?? 0) + (next ? -1 : 1));
+    }
+    setRsvpBusy(false);
+  };
+
+  const uploadBuilding = async (file: File) => {
+    if (!address) return login();
+    if (!authed || !token) {
+      setUploadErr('Sign-in session required.');
+      return;
+    }
+    setUploadErr('');
+    setUploading(true);
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const path = `${event.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await authed.storage
+        .from('buildings')
+        .upload(path, file, { upsert: false, contentType: file.type });
+      if (upErr) throw new Error(upErr.message);
+
+      const { data: pub } = authed.storage.from('buildings').getPublicUrl(path);
+      const res = await fetch('/api/building', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ event_id: event.id, image_url: pub.publicUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Upload failed');
+      onBuildingImage?.(pub.publicUrl);
+    } catch (e) {
+      setUploadErr(e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const share = async () => {
+    const url = event.luma_url || window.location.href;
+    const text = `${event.title} — on WhatsVP`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: event.title, text, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShared(true);
+        setTimeout(() => setShared(false), 1500);
+      }
+    } catch {
+      /* user dismissed share sheet */
+    }
+  };
+
+  return {
+    address,
+    isLandmark,
+    transit,
+    rsvpCount,
+    going,
+    rsvpBusy,
+    shared,
+    uploading,
+    uploadErr,
+    googleMapsUrl,
+    wazeUrl,
+    calendarUrl,
+    toggleRsvp,
+    uploadBuilding,
+    share,
+  };
+}
+
+/** Google Calendar "add event" template link. */
+function buildCalendarUrl(event: Event): string {
+  const toGcal = (iso: string) => new Date(iso).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const start = toGcal(event.starts_at);
+  const end = toGcal(event.ends_at ?? new Date(new Date(event.starts_at).getTime() + 3 * 3600_000).toISOString());
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: event.title,
+    dates: `${start}/${end}`,
+    location: event.venue_name ?? '',
+    details: `${event.description ?? ''}\n\nvia WhatsVP${event.luma_url ? `\n${event.luma_url}` : ''}`.trim(),
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}

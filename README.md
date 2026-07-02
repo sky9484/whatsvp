@@ -47,7 +47,7 @@ Repositioning: **"The live map of the KL builder scene"** → **"Your city's com
 | P | Scope | State |
 |---|---|---|
 | **1** | Reposition + fix pass — renames, copy audit, mixed seed data, responsive nav, design tokens | ✅ Built |
-| 2 | Map 2.0 — bottom sheet + carousel, time scrubber, presence via check-ins | ⏳ |
+| **2** | Map 2.0 — bottom sheet + carousel, time scrubber | ✅ Built (presence via check-ins deferred to P3) |
 | 3 | Core loop — check-in (QR/geofence) → Stamp (new Move module) → Passport, organizer analytics | ⏳ |
 | 4 | Chat 2.0 — guild channels, ephemeral event rooms + photo drops, DMs + mutuals, PWA/push | ⏳ |
 | 5 | Landing & growth — logged-out map hero, SSR `/e/[slug]` `/g/[slug]`, OG images, WhatsApp share | ⏳ |
@@ -57,6 +57,8 @@ Repositioning: **"The live map of the KL builder scene"** → **"Your city's com
 **Responsive nav.** [TabBar.tsx](components/TabBar.tsx) — a bottom tab bar (Map/Guilds/Chat/Passport) on `<md` screens; desktop keeps the header's top nav (`how/guilds/organize/chat`). Organize becomes a floating "+" on mobile. MapContainer's four independent drawer-open booleans were replaced with a single `activeDrawer` state — this was also a confirmed audit finding (drawers could stack with undefined dismiss behaviour), fixed as a natural byproduct of building tab-highlighting.
 
 **Design tokens.** `app/globals.css` gained `surface`/`sub`/`info` CSS-variable tokens (light + dark, exact v3 hex values) alongside the existing `paper`/`ink`/`teal`/`live`/`upcoming`/`hairline`; `tailwind.config.ts` gained a type scale (`text-body`, `text-h1`, …) and named radii (`rounded-control`/`card`/`sheet`) for new components to opt into. Satoshi font swap and framer-motion are deferred to the P2 redesign pass — nothing in P1 needed them, and adding either now would be premature.
+
+**P2 — Map 2.0.** Mobile gets a **draggable bottom sheet** ([EventSheet.tsx](components/EventSheet.tsx), `framer-motion`) instead of the floating popup: peek (a synced horizontal card carousel) → half → full, with drag + velocity-biased snapping. Swiping the carousel flies the map to that pin; tapping a pin scrolls the carousel to match. Desktop keeps [EventPopup.tsx](components/EventPopup.tsx) — both now share [lib/useEventDetail.ts](lib/useEventDetail.ts) (transit/RSVP/share/building-upload state) and [EventDetailContent.tsx](components/EventDetailContent.tsx) (the rendered detail body), so a 5th detail surface didn't mean a 5th copy of the logic — a direct fix for the audit's "duplicated drawer chrome" finding. [FilterCard.tsx](components/FilterCard.tsx) was replaced by [SearchBar.tsx](components/SearchBar.tsx) (search + near-me only) plus a new **time scrubber** ([TimeScrubber.tsx](components/TimeScrubber.tsx)) — five segments (Live now / Today / Tomorrow / This week / Past 10 days) computed KL-timezone-safe in [lib/utils.ts](lib/utils.ts) (`matchesSegment`/`segmentCounts`), replacing the old live/upcoming/past status chips. Clustering and theme-aware basemap swapping (v2 Upgrade 1) were untouched by this pass and re-verified working. **Presence** ("N here now" on pins) is spec'd in the v3 brief but genuinely depends on P3's `checkins` table — it's deferred rather than faked with timestamp math dressed up as presence.
 
 ---
 
@@ -129,7 +131,8 @@ Open <http://localhost:3000>. With the seed data loaded you'll see live (coral) 
 ```
 Browser (Next.js / React)
   ├─ MapLibre map  ── reads events from Supabase (anon client, RLS-protected)
-  ├─ FilterCard    ── search + live/upcoming chips + near-me geolocate
+  ├─ SearchBar + TimeScrubber ── search + near-me + live/today/tomorrow/week/past10
+  ├─ EventPopup (desktop) / EventSheet (mobile) ── event detail, sharing lib/useEventDetail.ts
   └─ OrganizeDrawer ── POSTs a Luma URL to /api/organize
 
   └─ Enoki zkLogin ── Google OAuth → Sui address → /api/auth/session
@@ -186,7 +189,7 @@ The directions buttons in the event popup are deep links (Google Maps transit + 
 
 ### RSVP, share, calendar (beat-Luma layer)
 
-The event card ([EventPopup.tsx](components/EventPopup.tsx)) adds the functions Luma is known for: **one-tap RSVP** (client-side toggle on `event_rsvps`, world-readable counts, optimistic UI, gated behind login), **share** (Web Share API → clipboard fallback), and **add-to-Google-Calendar**, on top of a cover-image hero, live transit, and directions.
+The event detail views ([EventPopup.tsx](components/EventPopup.tsx) desktop, [EventSheet.tsx](components/EventSheet.tsx) mobile, both via [EventDetailContent.tsx](components/EventDetailContent.tsx)) add the functions Luma is known for: **one-tap RSVP** (client-side toggle on `event_rsvps`, world-readable counts, optimistic UI, gated behind login), **share** (Web Share API → clipboard fallback), and **add-to-Google-Calendar**, on top of a cover-image hero, live transit, and directions.
 
 ---
 
@@ -224,8 +227,11 @@ components/
   IsoBuilding.tsx         isometric SVG landmark renderer + photo-card renderer
   Header.tsx              slim top bar: wordmark + tagline (lg+) + desktop nav + theme toggle + user chip
   TabBar.tsx              bottom tab bar (Map/Guilds/Chat/Passport) — mobile only
-  FilterCard.tsx           search + chips + near-me
-  EventPopup.tsx           event detail + RSVP + share + calendar + transit + directions
+  SearchBar.tsx           search + near-me (desktop + mobile)
+  TimeScrubber.tsx        5-segment time filter: live/today/tomorrow/week/past10
+  EventPopup.tsx           desktop event detail card (floating, md:block)
+  EventSheet.tsx           mobile draggable bottom sheet: peek carousel → half → full (md:hidden)
+  EventDetailContent.tsx  shared detail body (time/venue/transit/RSVP/share/building) — used by both
   OrganizeDrawer.tsx       paste-a-Luma-link form (gated)
   ChatDrawer.tsx           groups → topics → Supabase Realtime messages
   GuildsDrawer.tsx         guild directory + guild home (roster/events/join) + create
@@ -234,7 +240,8 @@ components/
   PassportMinter.tsx       silent, gasless Passport auto-mint on first login
 lib/
   types.ts                shared types
-  utils.ts                status derivation, formatting, haversine, filtering
+  utils.ts                status derivation, formatting, haversine, filtering, time-segment matching
+  useEventDetail.ts       shared event-detail state/actions (transit, RSVP, share, building upload)
   luma.ts                 Luma API + HTML parsing (server-only usage)
   gtfs.ts                 GTFS-Static parse + frequency-based next-departure (server-only)
   sui.ts / sui-server.ts  network config, formatting / server-only Sui RPC client
@@ -265,8 +272,8 @@ supabase/
 
 ## Product principles (don't break these)
 
-1. **Builder-first, KL-first.** No tourist mode, no super-app sprawl.
-2. **Web2 UX.** No seed phrases / gas / chain names in the main flow. The Sui address shows **only in Settings**.
+1. **Every community, KL-first.** Horizontal infrastructure for any community type — no tourist mode, no super-app sprawl, no crypto-only default.
+2. **The auntie test.** No wallet / mint / on-chain / gas / NFT / crypto vocabulary in the main flow, ever. Chain details show **only in Settings → Advanced**. [lib/copy.ts](lib/copy.ts) is the canonical vocabulary.
 3. **Editorial curation, not magic discovery.** Curate your own Luma calendar.
 4. **Cost control.** Cache aggressively; prefer free tiers.
 5. **One sharp surface.** Everything orbits the map.

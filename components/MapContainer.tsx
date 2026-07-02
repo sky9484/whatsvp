@@ -5,8 +5,10 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 
 import Header from './Header';
 import TabBar from './TabBar';
-import FilterCard from './FilterCard';
+import SearchBar from './SearchBar';
+import TimeScrubber from './TimeScrubber';
 import EventPopup from './EventPopup';
+import EventSheet from './EventSheet';
 import OrganizeDrawer from './OrganizeDrawer';
 import SettingsDrawer from './SettingsDrawer';
 import ChatDrawer from './ChatDrawer';
@@ -15,7 +17,7 @@ import type { Guild } from '@/lib/types';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
-import { withStatus, filterEvents, getEventStatus, formatEventTime } from '@/lib/utils';
+import { withStatus, filterEvents, segmentCounts, getEventStatus, formatEventTime } from '@/lib/utils';
 import type { Event, EventFilter, RawEvent } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { resolveLandmark } from '@/lib/buildings';
@@ -36,7 +38,7 @@ type DrawerKey = 'organize' | 'settings' | 'chat' | 'guilds' | null;
 
 export default function MapContainer() {
   const [allEvents, setAllEvents] = useState<Event[]>([]);
-  const [filter, setFilter] = useState<EventFilter>('all');
+  const [filter, setFilter] = useState<EventFilter>('week');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   // Single source of truth for which drawer is open — at most one at a time.
@@ -109,11 +111,8 @@ export default function MapContainer() {
     setGuildFilter(guild);
   }, []);
 
-  const eventCounts = useMemo(() => ({
-    all:      allEvents.filter((e) => e.status !== 'past').length,
-    live:     allEvents.filter((e) => e.status === 'live').length,
-    upcoming: allEvents.filter((e) => e.status === 'upcoming').length,
-  }), [allEvents]);
+  const timeCounts = useMemo(() => segmentCounts(allEvents), [allEvents]);
+  const liveCount = timeCounts.live;
 
   const handleEventSelect = useCallback((event: Event) => {
     setSelectedEvent(event);
@@ -158,6 +157,28 @@ export default function MapContainer() {
   }, [address, login]);
 
   const closeDrawer = useCallback(() => setActiveDrawer(null), []);
+
+  // Shared by EventPopup (desktop) and EventSheet (mobile) — both act on
+  // whichever event is currently selected/focused.
+  const handleViewBuilding = useCallback((event: Event) => {
+    setBuildingFocus({
+      lat: event.lat,
+      lng: event.lng,
+      title: event.title,
+      status: event.status,
+      meta: event.venue_name ?? formatEventTime(event),
+      design: resolveLandmark(event),
+      imageUrl: event.building_image_url ?? null,
+    });
+  }, []);
+
+  const handleBuildingImage = useCallback((event: Event, url: string) => {
+    setAllEvents((prev) =>
+      prev.map((e) => (e.id === event.id ? { ...e, building_image_url: url } : e))
+    );
+    setSelectedEvent((prev) => (prev && prev.id === event.id ? { ...prev, building_image_url: url } : prev));
+    handleViewBuilding({ ...event, building_image_url: url });
+  }, [handleViewBuilding]);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-paper">
@@ -214,18 +235,20 @@ export default function MapContainer() {
         </div>
       )}
 
-      {/* Filter / search card */}
-      <FilterCard
-        filter={filter}
-        onFilterChange={setFilter}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onNearMe={() => setGeolocateTrigger((n) => n + 1)}
-        eventCounts={eventCounts}
-      />
+      {/* Search + time scrubber card */}
+      <div className="absolute top-[72px] left-1/2 -translate-x-1/2 z-30 w-full max-w-md px-3 pointer-events-none">
+        <div className="bg-paper/95 backdrop-blur-md rounded-2xl shadow-lg border border-hairline p-3 pointer-events-auto space-y-2">
+          <SearchBar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onNearMe={() => setGeolocateTrigger((n) => n + 1)}
+          />
+          <TimeScrubber active={filter} onChange={setFilter} counts={timeCounts} />
+        </div>
+      </div>
 
       {/* Live-presence indicator — sits above the mobile tab bar */}
-      {eventCounts.live > 0 && (
+      {liveCount > 0 && (
         <div className="absolute bottom-20 md:bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
           <span className="inline-flex items-center gap-2 bg-paper/90 backdrop-blur-md rounded-full pl-2.5 pr-3.5 py-1.5 border border-hairline shadow-lg">
             <span className="relative flex h-2 w-2">
@@ -233,7 +256,7 @@ export default function MapContainer() {
               <span className="relative inline-flex rounded-full h-2 w-2 bg-live" />
             </span>
             <span className="text-[13px] font-medium text-ink">
-              {eventCounts.live} {eventCounts.live === 1 ? 'spot' : 'spots'} live now
+              {liveCount} {liveCount === 1 ? 'spot' : 'spots'} live now
             </span>
           </span>
         </div>
@@ -255,14 +278,18 @@ export default function MapContainer() {
           <div className="bg-paper/90 backdrop-blur-md rounded-xl px-5 py-3 border border-hairline text-sm text-ink/60 text-center shadow">
             {searchQuery
               ? `No events matching "${searchQuery}"`
-              : filter === 'live'
-              ? 'No live events right now'
-              : 'No upcoming events — check back soon'}
+              : {
+                  live: 'No live events right now',
+                  today: 'Nothing on today — see this week',
+                  tomorrow: 'Nothing tomorrow yet',
+                  week: 'No events this week — check back soon',
+                  past10: 'No events in the past 10 days',
+                }[filter]}
           </div>
         </div>
       )}
 
-      {/* Event popup */}
+      {/* Event popup — desktop only (hidden md:block internally) */}
       {selectedEvent && (
         <EventPopup
           event={selectedEvent}
@@ -270,35 +297,23 @@ export default function MapContainer() {
             setSelectedEvent(null);
             setBuildingFocus(null); // reset the tilted camera
           }}
-          onViewBuilding={() =>
-            setBuildingFocus({
-              lat: selectedEvent.lat,
-              lng: selectedEvent.lng,
-              title: selectedEvent.title,
-              status: selectedEvent.status,
-              meta: selectedEvent.venue_name ?? formatEventTime(selectedEvent),
-              design: resolveLandmark(selectedEvent),
-              imageUrl: selectedEvent.building_image_url ?? null,
-            })
-          }
-          onBuildingImage={(url) => {
-            setAllEvents((prev) =>
-              prev.map((e) => (e.id === selectedEvent.id ? { ...e, building_image_url: url } : e))
-            );
-            setSelectedEvent((prev) => (prev ? { ...prev, building_image_url: url } : prev));
-            // Reveal it immediately on the map
-            setBuildingFocus({
-              lat: selectedEvent.lat,
-              lng: selectedEvent.lng,
-              title: selectedEvent.title,
-              status: selectedEvent.status,
-              meta: selectedEvent.venue_name ?? formatEventTime(selectedEvent),
-              design: null,
-              imageUrl: url,
-            });
-          }}
+          onViewBuilding={() => handleViewBuilding(selectedEvent)}
+          onBuildingImage={(url) => handleBuildingImage(selectedEvent, url)}
         />
       )}
+
+      {/* Event sheet — mobile only (md:hidden internally), draggable peek/half/full + carousel */}
+      <EventSheet
+        events={visibleEvents}
+        selectedEvent={selectedEvent}
+        onEventSelect={handleEventSelect}
+        onClose={() => {
+          setSelectedEvent(null);
+          setBuildingFocus(null);
+        }}
+        onViewBuilding={handleViewBuilding}
+        onBuildingImage={handleBuildingImage}
+      />
 
       {/* Organize drawer */}
       <OrganizeDrawer

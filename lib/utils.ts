@@ -1,4 +1,4 @@
-import type { RawEvent, Event, EventStatus } from './types';
+import type { RawEvent, Event, EventStatus, EventFilter } from './types';
 
 const KL_TZ = 'Asia/Kuala_Lumpur';
 
@@ -70,15 +70,41 @@ export function distanceMetres(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/** KL-calendar-day key (YYYY-MM-DD) for a timestamp — timezone-safe day comparison. */
+function klDateKey(ms: number): string {
+  return new Date(ms).toLocaleDateString('en-CA', { timeZone: KL_TZ });
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Which time-scrubber segment(s) an event belongs to, evaluated against `now`. */
+function matchesSegment(event: Event, filter: EventFilter, now: number): boolean {
+  const start = new Date(event.starts_at).getTime();
+
+  switch (filter) {
+    case 'live':
+      return event.status === 'live';
+    case 'today':
+      return event.status !== 'past' && klDateKey(start) === klDateKey(now);
+    case 'tomorrow':
+      return klDateKey(start) === klDateKey(now + DAY_MS);
+    case 'week':
+      return event.status !== 'past' && start <= now + 7 * DAY_MS;
+    case 'past10':
+      return event.status === 'past' && start >= now - 10 * DAY_MS;
+    default:
+      return true;
+  }
+}
+
 export function filterEvents(
   events: Event[],
-  filter: string,
+  filter: EventFilter,
   query: string
 ): Event[] {
+  const now = Date.now();
   return events.filter((e) => {
-    if (filter === 'live' && e.status !== 'live') return false;
-    if (filter === 'upcoming' && e.status !== 'upcoming') return false;
-    if (filter === 'all' && e.status === 'past') return false;
+    if (!matchesSegment(e, filter, now)) return false;
 
     if (query.trim()) {
       const q = query.toLowerCase();
@@ -90,4 +116,14 @@ export function filterEvents(
     }
     return true;
   });
+}
+
+/** Counts for each time-scrubber segment, for badges on the scrubber. */
+export function segmentCounts(events: Event[]): Record<EventFilter, number> {
+  const now = Date.now();
+  const counts: Record<EventFilter, number> = { live: 0, today: 0, tomorrow: 0, week: 0, past10: 0 };
+  for (const key of Object.keys(counts) as EventFilter[]) {
+    counts[key] = events.filter((e) => matchesSegment(e, key, now)).length;
+  }
+  return counts;
 }

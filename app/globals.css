@@ -253,3 +253,13 @@ body {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--color-hairline); border-radius: 2px; }
+
+/* Fully hidden scrollbar — for horizontally-scrollable rows (time scrubber, carousel)
+   where the scroll affordance is swipe, not a visible bar. */
+.no-scrollbar {
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* old Edge */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;              /* Chrome/Safari */
+}

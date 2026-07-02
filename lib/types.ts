@@ -99,13 +99,63 @@ export interface Topic {
 
 export interface Message {
   id: string;
-  group_id: string;
-  topic_id: string;
+  group_id?: string | null;
+  topic_id?: string | null;
+  event_room_id?: string | null;
+  dm_thread_id?: string | null;
+  reply_to_id?: string | null;
+  expires_at?: string | null;
   profile_id: string;
   body: string;
   created_at: string;
   // Joined for display (optional)
   profiles?: { display_name: string; avatar_url?: string | null } | null;
+}
+
+/** One reaction on a message (v3 P4). */
+export interface MessageReaction {
+  message_id: string;
+  profile_id: string;
+  emoji: string;
+}
+
+/** A per-event ephemeral chat room (v3 P4) — auto-created, access = RSVP'd or checked-in. */
+export interface EventRoom {
+  id: string;
+  event_id: string;
+  created_at: string;
+}
+
+/** A friend request/connection (v3 P4). "Mutuals" = status === 'accepted'. */
+export interface Friendship {
+  requester_id: string;
+  addressee_id: string;
+  status: 'pending' | 'accepted' | 'blocked';
+  created_at: string;
+  responded_at?: string | null;
+  // Joined for display (optional)
+  requester?: { display_name: string; avatar_url?: string | null } | null;
+  addressee?: { display_name: string; avatar_url?: string | null } | null;
+}
+
+/** A DM thread between two profiles (v3 P4). */
+export interface DmThread {
+  id: string;
+  profile_a_id: string;
+  profile_b_id: string;
+  disappearing: boolean;
+  created_at: string;
+}
+
+/** A photo dropped in an event room (v3 P4) — 7-day app-level expiry. */
+export interface EventPhoto {
+  id: string;
+  event_room_id: string;
+  profile_id: string;
+  image_url: string;
+  created_at: string;
+  expires_at: string;
+  reaction_count?: number;
 }
 
 /** A verified check-in (v3 P3) — the source of truth behind a Stamp. */

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useSuiClient } from '@mysten/dapp-kit';
 import { useAuth } from '@/lib/auth';
 import { shortenAddress, formatSui, SUI_NETWORK } from '@/lib/sui';
+import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush, type PushState } from '@/lib/pwa';
 
 // viem (EVM wallet + chain defs) is only needed by this opt-in, power-user
 // feature — load it on demand instead of bundling it into every page load.
@@ -17,12 +18,14 @@ interface SettingsDrawerProps {
 }
 
 export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps) {
-  const { address, profile, logout } = useAuth();
+  const { address, profile, logout, token } = useAuth();
   const suiClient = useSuiClient();
 
   const [balance, setBalance] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showTopUp, setShowTopUp] = useState(false);
+  const [pushState, setPushState] = useState<PushState | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
   const [identity, setIdentity] = useState<{
     passport: unknown;
     cosmetics: unknown[];
@@ -64,6 +67,28 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
       cancelled = true;
     };
   }, [isOpen, address, suiClient]);
+
+  // Read push subscription state when the drawer opens
+  useEffect(() => {
+    if (!isOpen) return;
+    void getPushSubscriptionState().then(setPushState);
+  }, [isOpen]);
+
+  const togglePush = async () => {
+    if (!token) return;
+    setPushBusy(true);
+    try {
+      if (pushState === 'subscribed') {
+        await unsubscribeFromPush(token);
+        setPushState('unsubscribed');
+      } else {
+        const ok = await subscribeToPush(token);
+        setPushState(ok ? 'subscribed' : await getPushSubscriptionState());
+      }
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   // Close on Escape
   useEffect(() => {
@@ -248,6 +273,32 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
                 <span aria-hidden>→</span>
               </Link>
             </div>
+
+            {/* Notifications — web-push, opt-in */}
+            {pushState && pushState !== 'unsupported' && (
+              <div className="rounded-xl border border-hairline p-3.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-ink">Notifications</span>
+                  {pushState === 'not-configured' ? (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-ink/10 text-ink/50 font-medium uppercase">Soon</span>
+                  ) : (
+                    <button
+                      onClick={togglePush}
+                      disabled={pushBusy || pushState === 'denied'}
+                      className={`text-[11px] px-2.5 py-1 rounded-full font-medium transition-colors disabled:opacity-50
+                        ${pushState === 'subscribed' ? 'bg-teal/15 text-teal' : 'bg-ink/[0.06] text-ink hover:bg-ink/10'}`}
+                    >
+                      {pushBusy ? '…' : pushState === 'subscribed' ? 'On' : pushState === 'denied' ? 'Blocked' : 'Turn on'}
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-ink/50">
+                  {pushState === 'denied'
+                    ? 'Notifications are blocked in your browser settings.'
+                    : "Get a nudge when an event you're going to is starting soon, or someone messages you."}
+                </p>
+              </div>
+            )}
 
             {/* Top-up — interface only (Phase 6). Clearly non-functional. */}
             <div className="rounded-xl border border-hairline p-3.5">

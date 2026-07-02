@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useSignAndExecuteTransaction } from '@mysten/dapp-kit';
+import AddFriendButton from './AddFriendButton';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { withStatus } from '@/lib/utils';
@@ -346,10 +347,11 @@ export default function GuildsDrawer({ isOpen, onClose, onShowGuildEvents }: Gui
                 {detail.members.slice(0, 24).map((m) => (
                   <span key={m.profile_id} className="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-ink/[0.05] text-xs">
                     <span className="w-5 h-5 rounded-full bg-teal text-paper flex items-center justify-center text-[10px] font-semibold">
-                      {m.profiles?.display_name?.[0]?.toUpperCase() ?? 'B'}
+                      {m.profiles?.display_name?.[0]?.toUpperCase() ?? '?'}
                     </span>
-                    <span className="text-ink/70 max-w-[90px] truncate">{m.profiles?.display_name ?? 'Builder'}</span>
+                    <span className="text-ink/70 max-w-[90px] truncate">{m.profiles?.display_name ?? 'Member'}</span>
                     {m.role !== 'member' && <span className="text-teal text-[10px]">{m.role}</span>}
+                    <AddFriendButton profileId={m.profile_id} />
                   </span>
                 ))}
               </div>

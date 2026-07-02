@@ -49,7 +49,7 @@ Repositioning: **"The live map of the KL builder scene"** → **"Your city's com
 | **1** | Reposition + fix pass — renames, copy audit, mixed seed data, responsive nav, design tokens | ✅ Built |
 | **2** | Map 2.0 — bottom sheet + carousel, time scrubber | ✅ Built (presence via check-ins deferred to P3) |
 | **3** | Core loop — check-in (QR/geofence) → Stamp (new Move module) → Passport, organizer analytics | ✅ Built |
-| 4 | Chat 2.0 — guild channels, ephemeral event rooms + photo drops, DMs + mutuals, PWA/push | ⏳ |
+| **4** | Chat 2.0 — guild channels, ephemeral event rooms + photo drops, DMs + mutuals, PWA/push | ✅ Built |
 | 5 | Landing & growth — logged-out map hero, SSR `/e/[slug]` `/g/[slug]`, OG images, WhatsApp share | ⏳ |
 
 **P1 — the auntie test.** `BuilderId` renamed to **Passport** everywhere (Move module [passport.move](move/whatsvp/sources/passport.move), types, routes, UI — nothing was on-chain yet, so this was free). [lib/copy.ts](lib/copy.ts) is now the canonical, grep-able registry of user-facing vocabulary — forbidden words (NFT, wallet, mint, on-chain, blockchain, crypto, Web3, token, gas, Sui, address) are audited out of every component/route except `Settings → Advanced`, which is the one place chain details may appear. [lib/demoEvents.ts](lib/demoEvents.ts) + [seed.sql](supabase/seed.sql) now seed **7 guilds across 8 community types** (run club, photography, badminton, food, student society, board games, founders, Web3) — a Web3 meetup is one community among many, not the default.
@@ -69,6 +69,16 @@ Repositioning: **"The live map of the KL builder scene"** → **"Your city's com
 - Schema: [006_checkins.sql](supabase/migrations/006_checkins.sql) — renumbered from the brief's proposed `005` to avoid colliding with the real `005_external_pfp.sql` from v2 Upgrade 4.
 
 > **To activate on-chain Stamps:** publish `move/whatsvp` (now including `stamp.move`) to testnet, fund a backend address with a small amount of SUI, transfer that address the `AdminCap` from the module's `init`, and set `STAMP_REGISTRY_ID` / `STAMP_ADMIN_CAP_ID` / `STAMP_ADMIN_PRIVATE_KEY`. Without them, check-ins work fully — they're just recorded in Postgres only, exactly the same graceful degradation as every other Move feature in this app.
+
+**P4 — Chat 2.0 + PWA.** Three tiers on one shared engine ([lib/useRoom.ts](lib/useRoom.ts) — history, Realtime delivery, optimistic send, reactions, presence, all in one place instead of three near-copies), switched via tabs in [ChatDrawer.tsx](components/ChatDrawer.tsx):
+
+- **Guilds** ([GuildChannels.tsx](components/chat/GuildChannels.tsx)): the existing groups → topics chat, unchanged behavior, rebuilt on the shared engine.
+- **Live** ([EventRooms.tsx](components/chat/EventRooms.tsx)): an ephemeral room auto-created for every event (a Postgres trigger on `events` INSERT, so it can never be forgotten by a future ingestion path) — opens 24h before start, live through the event, read-only for 48h after, then shows a **recap strip** (photo drops sorted by reaction count) instead of a composer. Access = RSVP'd or checked in, evaluated live. Photo drops upload to a dedicated `event-photos` Storage bucket with a 7-day **application-level** expiry (Supabase Storage has no native TTL — a daily cron, [/api/cron/cleanup-expired](app/api/cron/cleanup-expired/route.ts), does the actual deletion; `expires_at` gates visibility immediately either way).
+- **DMs** ([DirectMessages.tsx](components/chat/DirectMessages.tsx)): friend requests + accepted mutuals + threads, with an optional **disappearing mode** (messages get `expires_at = now()+24h`, swept by the same cleanup cron). Thread creation ([/api/dm/start](app/api/dm/start/route.ts)) is the one write that needs the service role — everything else in Chat 2.0 (reactions, RSVP-gated room access, friend requests/responses, photo uploads) is a **direct RLS-authed client write**, matching the existing `event_rsvps` pattern, not a new service-role route per action. A small **"+ friend"** affordance ([AddFriendButton.tsx](components/AddFriendButton.tsx)) lives in the Guilds roster and the organizer attendee list — the only two places you see another real person to befriend.
+- **Table stakes**: unread dots (per-conversation, comparing each room's latest message against `room_reads`; a global aggregate badge on the closed drawer's tab icon was scoped out — see below), reply-to, message grouping (consecutive same-sender messages within 3 min don't repeat the name), reactions (👍❤️😂😮), and simple online presence via Supabase Realtime presence tracking. **Typing indicators were deliberately not built** — real infrastructure for a cosmetic signal, lower value than everything else in this list; noted here rather than silently dropped.
+- **PWA**: [public/manifest.json](public/manifest.json) + [public/sw.js](public/sw.js) (installable; push + notification-click only — **no offline asset/data caching**, since a live map showing stale cached "live" pins would be actively dishonest) + a Notifications toggle in Settings ([lib/pwa.ts](lib/pwa.ts)) using VAPID web-push. `/api/cron/event-reminders` pushes "starting soon" ~10-20 min before an RSVP'd event; DM sends fire a best-effort push via `/api/push/notify`. **@mention push was not built** — it needs @-handle parsing + resolution to a profile, a distinct feature; only DM push shipped.
+
+> **To activate push:** run `npx web-push generate-vapid-keys` and set `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`. Without them the Notifications toggle shows "Soon" and everything else works normally. The PWA install icon is currently SVG-only ([public/icon.svg](public/icon.svg)) — this installs fine on Chrome/Edge/Android; Safari/iOS historically wants a real PNG `apple-touch-icon` for full home-screen fidelity, not yet added.
 
 ---
 
@@ -112,6 +122,7 @@ Fill in the keys. **Minimum to see the map running:** none — it falls back to 
 | `NEXT_PUBLIC_ENOKI_API_KEY` / `ENOKI_SECRET_KEY` | [portal.enoki.mystenlabs.com](https://portal.enoki.mystenlabs.com) | Phase 2 login |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | [console.cloud.google.com](https://console.cloud.google.com) → Credentials → OAuth client | Phase 2 login |
 | `STAMP_REGISTRY_ID` / `STAMP_ADMIN_CAP_ID` / `STAMP_ADMIN_PRIVATE_KEY` | From publishing `move/whatsvp` + funding a backend address (see below) | v3 P3 on-chain Stamps |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | `npx web-push generate-vapid-keys` | v3 P4 push notifications |
 
 ### 3. Database
 
@@ -239,7 +250,17 @@ app/
     checkin/qr/[event_id]/route.ts  host-only rotating check-in code (v3 P3)
     stamp-image/[event_id]/route.ts  deterministic generated Stamp SVG (v3 P3)
     passport/route.ts       my profile + every Stamp collected (v3 P3)
+    dm/start/route.ts       find-or-create a DM thread with a mutual friend (v3 P4)
+    push/subscribe|unsubscribe/route.ts  manage a web-push subscription (v3 P4)
+    push/notify/route.ts    best-effort push after a DM send (v3 P4)
+    cron/event-reminders/route.ts   "starting soon" push for RSVP'd events (v3 P4)
+    cron/cleanup-expired/route.ts   delete expired photos + disappearing DMs (v3 P4)
 components/
+  chat/
+    RoomView.tsx            shared message list + composer: reactions, reply-to, grouping, photo strip (v3 P4)
+    GuildChannels.tsx       tier 1 — groups -> topics (existing behavior, now on lib/useRoom.ts)
+    EventRooms.tsx          tier 2 — ephemeral per-event rooms + recap strip (v3 P4)
+    DirectMessages.tsx      tier 3 — friend requests + DMs + disappearing mode (v3 P4)
   Providers.tsx           theme + react-query + SuiClientProvider + Enoki + toast + auth
   MapContainer.tsx        client orchestrator (state, data fetch, gating, guild filter)
   Map.tsx                 MapLibre: theme-aware style, clustering, 3D buildings, iso overlay
@@ -258,12 +279,18 @@ components/
   ExternalPfpLinker.tsx    opt-in external wallet link + ownership verify (lazy-loaded)
   PassportMinter.tsx       silent, gasless Passport auto-mint on first login
   CheckinQR.tsx            organizer's self-refreshing rotating check-in QR (v3 P3)
+  AddFriendButton.tsx      "+ friend" affordance used in rosters/attendee lists (v3 P4)
+  ServiceWorkerRegister.tsx  registers public/sw.js on mount, silent (v3 P4)
 lib/
   types.ts                shared types
   utils.ts                status derivation, formatting, haversine, filtering, time-segment matching, check-in window
   useEventDetail.ts       shared event-detail state/actions (transit, RSVP, share, building upload, check-in)
   checkinCode.ts          dep-free HMAC TOTP-style rotating check-in code (server-only)
   sui-admin.ts            backend Sui signer for AdminCap-gated Stamp mints (server-only, v3 P3)
+  useRoom.ts              shared chat engine: history, Realtime, send, reactions, presence (v3 P4)
+  useUnread.ts            per-conversation has-unread flags (v3 P4)
+  webPush.ts              server-side VAPID push sending, prunes dead subscriptions (v3 P4)
+  pwa.ts                  client push subscribe/unsubscribe helpers (v3 P4)
   luma.ts                 Luma API + HTML parsing (server-only usage)
   gtfs.ts                 GTFS-Static parse + frequency-based next-departure (server-only)
   sui.ts / sui-server.ts  network config, formatting / server-only Sui RPC client
@@ -281,6 +308,10 @@ lib/
   supabase/client.ts      browser anon + authed (+ Realtime-authed) clients
   supabase/server.ts      service-role client (server-only)
 move/whatsvp/             Sui Move package: passport, guild, cosmetics, stamp modules
+public/
+  manifest.json           PWA manifest (v3 P4)
+  sw.js                   service worker — push + notification-click only, no offline caching (v3 P4)
+  icon.svg                app icon (SVG; see the PWA note above re: iOS PNG)
 supabase/
   migrations/001_initial.sql     schema + RLS + Realtime
   migrations/002_auth.sql        re-point RLS at sui_address (JWT sub)
@@ -288,6 +319,7 @@ supabase/
   migrations/004_guilds.sql      guilds + guild_members + RLS (hardened)
   migrations/005_external_pfp.sql pfp_* columns, REVOKEd from client roles
   migrations/006_checkins.sql    checkins table + events.checkin_secret/checkin_methods (v3 P3)
+  migrations/007_chat2.sql       event_rooms, dm_threads, friendships, reactions, room_reads, event_photos, push_subscriptions (v3 P4)
   seed.sql                       dev demo pins + landmark events + seed guild
 ```
 

@@ -14,6 +14,7 @@ import { AuthProvider } from '@/lib/auth';
 import { ToastProvider } from '@/lib/toast';
 import { ThemeProvider } from '@/lib/theme';
 import PassportMinter from './PassportMinter';
+import ServiceWorkerRegister from './ServiceWorkerRegister';
 
 /** Registers Enoki-backed wallets (Google zkLogin) into the dapp-kit wallet list. */
 function RegisterEnokiWallets() {
@@ -55,6 +56,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           <WalletProvider autoConnect>
             <ToastProvider>
               <AuthProvider>
+                <ServiceWorkerRegister />
                 <PassportMinter />
                 {children}
               </AuthProvider>

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { formatEventTime } from '@/lib/utils';
 import CheckinQR from '@/components/CheckinQR';
+import AddFriendButton from '@/components/AddFriendButton';
 import type { RawEvent } from '@/lib/types';
 
 interface AttendeeRow {
@@ -163,6 +164,7 @@ export default function ManageEventPage() {
                           · {c.method === 'qr' ? 'QR code' : 'Location'}
                         </span>
                       </span>
+                      <AddFriendButton profileId={c.profile_id} />
                     </li>
                   ))}
                 </ul>

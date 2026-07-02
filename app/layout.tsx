@@ -8,6 +8,11 @@ export const metadata: Metadata = {
   title: `WhatsVP — ${TAGLINE}`,
   description: `${TAGLINE} Discover events, join guilds, and connect with the communities around you.`,
   metadataBase: new URL('https://whatsvp.com'),
+  manifest: '/manifest.json',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
   openGraph: {
     title: 'WhatsVP',
     description: TAGLINE,

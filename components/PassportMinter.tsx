@@ -3,17 +3,17 @@
 import { useEffect, useRef } from 'react';
 import { useCurrentAccount, useSuiClient, useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 import { useAuth } from '@/lib/auth';
-import { isMoveConfigured, buildMintBuilderIdTx, BUILDER_ID_TYPE } from '@/lib/sui-move';
+import { isMoveConfigured, buildMintPassportTx, PASSPORT_TYPE } from '@/lib/sui-move';
 
 /**
- * Mints the free, soulbound Builder ID to the user right after they log in —
+ * Mints the free, soulbound Passport to the user right after they log in —
  * gaslessly, sponsored by the Enoki wallet. Renders nothing; pure side-effect.
  *
  * No crypto UX is shown: it runs silently, one time per address, only if the
  * Move package is configured. Any failure is swallowed (the user still has a
- * fully working account — the Builder ID is a bonus, never a gate).
+ * fully working account — the Passport is a bonus, never a gate).
  */
-export default function BuilderIdMinter() {
+export default function PassportMinter() {
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
   const { profile, isAuthed } = useAuth();
@@ -31,22 +31,22 @@ export default function BuilderIdMinter() {
     let cancelled = false;
     (async () => {
       try {
-        // Already has a Builder ID? Then nothing to do.
+        // Already has a Passport? Then nothing to do.
         const owned = await suiClient.getOwnedObjects({
           owner: address,
-          filter: { StructType: BUILDER_ID_TYPE() },
+          filter: { StructType: PASSPORT_TYPE() },
           limit: 1,
         });
         if (cancelled || (owned.data?.length ?? 0) > 0) return;
 
         signAndExecute(
-          { transaction: buildMintBuilderIdTx(profile.display_name) },
+          { transaction: buildMintPassportTx(profile.display_name) },
           {
-            onError: (e) => console.warn('[builder-id] mint skipped:', e.message),
+            onError: (e) => console.warn('[passport] mint skipped:', e.message),
           }
         );
       } catch (e) {
-        console.warn('[builder-id] check/mint failed:', e instanceof Error ? e.message : e);
+        console.warn('[passport] check/mint failed:', e instanceof Error ? e.message : e);
       }
     })();
 

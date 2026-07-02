@@ -5,36 +5,47 @@
 /* MapLibre GL JS styles */
 @import 'maplibre-gl/dist/maplibre-gl.css';
 
-/* ── CSS variables ───────────────────────────────────────────────────────────── */
-/* Space-separated RGB channels drive the Tailwind theme colours; `--color-*`
-   aliases keep the raw CSS below (pins, iso, drawers) theme-aware for free. */
+/* ── CSS variables (v3 design tokens) ───────────────────────────────────────────
+   Space-separated RGB channels drive the Tailwind theme colours; `--color-*`
+   aliases keep the raw CSS below (pins, iso, drawers) theme-aware for free.
+   `hairline` is the token the rest of the codebase calls `line` in the brief —
+   kept as-is since it's used across every existing border-hairline utility. */
 :root {
-  --paper: 247 245 239;
-  --ink: 27 27 24;
-  --teal: 15 110 86;
-  --live: 216 90 48;
-  --upcoming: 29 158 117;
-  --hairline: 228 225 216;
+  --paper: 247 245 239;      /* #F7F5EF */
+  --surface: 255 255 255;    /* #FFFFFF — raised cards over paper */
+  --ink: 27 27 24;           /* #1B1B18 */
+  --sub: 106 106 98;         /* #6A6A62 — secondary/subdued text */
+  --hairline: 228 225 216;   /* #E4E1D8 ("line") */
+  --teal: 15 110 86;         /* #0F6E56 brand */
+  --live: 216 90 48;         /* #D85A30 */
+  --upcoming: 29 158 117;    /* #1D9E75 */
+  --info: 24 95 165;         /* #185FA5 */
   color-scheme: light;
 }
 
 .dark {
-  --paper: 22 22 20;        /* warm near-black */
-  --ink: 237 234 226;       /* off-white */
-  --teal: 42 194 150;       /* brighter for dark bg */
-  --live: 233 116 74;       /* coral, luminance-lifted */
-  --upcoming: 46 197 146;   /* teal-green, luminance-lifted */
-  --hairline: 58 56 51;
+  --paper: 20 20 18;         /* #141412 */
+  --surface: 29 29 26;       /* #1D1D1A */
+  --ink: 242 240 234;        /* #F2F0EA */
+  --sub: 156 155 146;        /* #9C9B92 */
+  --hairline: 44 44 40;      /* #2C2C28 ("line") */
+  --teal: 42 194 150;        /* brighter for dark bg */
+  --live: 232 113 74;        /* #E8714A — luminance-lifted */
+  --upcoming: 55 185 140;    /* #37B98C — luminance-lifted */
+  --info: 74 143 209;        /* luminance-lifted */
   color-scheme: dark;
 }
 
 :root,
 .dark {
   --color-paper: rgb(var(--paper));
+  --color-surface: rgb(var(--surface));
   --color-ink: rgb(var(--ink));
+  --color-sub: rgb(var(--sub));
   --color-teal: rgb(var(--teal));
   --color-live: rgb(var(--live));
   --color-upcoming: rgb(var(--upcoming));
+  --color-info: rgb(var(--info));
   --color-hairline: rgb(var(--hairline));
 }
 

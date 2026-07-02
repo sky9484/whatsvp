@@ -1,8 +1,8 @@
 # WhatsVP
 
-The live map of the **Kuala Lumpur builder & founder scene**. Discover events (live + upcoming) on a precise KL map, get directions and the nearest train line, organize your own events by pasting a Luma link, and connect with the community.
+**Your city's communities, live.** Horizontal community infrastructure — guilds (any community, not just tech), events, a live map, chat, and a passport of the places you've actually shown up. A run club, a photography crew, a student society, a foodie group, and a Web3 guild all use the same primitives; go-to-market is sequenced one community at a time, but the codebase never assumes the user is a "builder" or crypto-native.
 
-Builder-first, KL-first. The map is the product.
+The map is the product. Every flow passes **the auntie test**: a non-technical community organizer can use it without ever seeing crypto vocabulary — wallet/mint/on-chain/gas/NFT never appear outside `Settings → Advanced`.
 
 ---
 
@@ -25,20 +25,38 @@ Builder-first, KL-first. The map is the product.
 |---|---|---|
 | **1** | Light/dark theme + theme-aware map (light/dark basemap), pin **clustering**, live-presence glow | ✅ Built |
 | **2** | Guilds (community homes: directory, roster, events, join, create) | ✅ Built |
-| **3** | Sui Move identity (soulbound Builder ID) + cosmetic Avatars (Kiosk) + GuildBadge, Enoki-sponsored | 🟡 Authored — publish to testnet to activate |
+| **3** | Sui Move identity (soulbound Passport) + cosmetic Avatars (Kiosk) + GuildBadge, Enoki-sponsored | 🟡 Authored — publish to testnet to activate |
 | **4** | External-collection PFP verification (opt-in, read-only EVM) | ✅ Built (needs `EVM_NFT_API_KEY` to activate) |
 
 **Theming** ([lib/theme.tsx](lib/theme.tsx)): class-based dark mode with a no-flash inline script; colours are CSS variables (`--paper`, `--ink`, …) so every Tailwind utility flips automatically. The map swaps between MapTiler `streets-v2` / `streets-v2-dark` (or CARTO Positron / Dark Matter without a key) on toggle, re-adding the pin + 3D-building layers on the new style. Events render from a **clustered GeoJSON source** (`ev-clusters` / `ev-unclustered`), with an animated coral glow on live pins.
 
 **Guilds** ([GuildsDrawer.tsx](components/GuildsDrawer.tsx), migration [004_guilds.sql](supabase/migrations/004_guilds.sql)): a guild is a community's home — directory + search, guild page (banner, roster, events, join), and create. Events carry a `guild_id`; "Show on map" filters the map to a guild. RLS hardened via an adversarial multi-agent review: self-inserts are forced to `role='member'`, and `is_verified`/`badge_type` are service-role-only so the ✓ badge can't be forged.
 
-**Sui Move identity** ([move/whatsvp](move/whatsvp), [lib/sui-move.ts](lib/sui-move.ts)): three modules — `builder_id` (free soulbound Builder ID, one per address), `guild` (soulbound GuildBadge on join), `cosmetics` (tradable Avatar + royalty `TransferPolicy` for Kiosk). The app auto-mints the Builder ID on first login and the GuildBadge on join, **gaslessly via the Enoki wallet** — no crypto UX. Settings shows the Builder ID + owned cosmetics ([/api/avatars/list](app/api/avatars/list/route.ts)).
+**Sui Move identity** ([move/whatsvp](move/whatsvp), [lib/sui-move.ts](lib/sui-move.ts)): three modules — `passport` (free soulbound Passport, one per address), `guild` (soulbound GuildBadge on join), `cosmetics` (tradable Avatar + royalty `TransferPolicy` for Kiosk). The app auto-mints the Passport on first login and the GuildBadge on join, **gaslessly via the Enoki wallet** — no crypto UX. Settings shows the Passport + owned cosmetics ([/api/avatars/list](app/api/avatars/list/route.ts)).
 
-> **To activate Upgrade 3:** publish `move/whatsvp` to testnet (`sui client publish`) and set `NEXT_PUBLIC_WHATSVP_PACKAGE_ID` + `NEXT_PUBLIC_BUILDER_REGISTRY_ID`. Everything is gated on `isMoveConfigured()`, so without the package IDs the app runs normally and simply skips all on-chain mints. The modules + wiring are authored and type-check, but the Sui toolchain isn't in this build environment, so **publishing and on-chain verification happen on your machine**.
+> **To activate Upgrade 3:** publish `move/whatsvp` to testnet (`sui client publish`) and set `NEXT_PUBLIC_WHATSVP_PACKAGE_ID` + `NEXT_PUBLIC_PASSPORT_REGISTRY_ID`. Everything is gated on `isMoveConfigured()`, so without the package IDs the app runs normally and simply skips all on-chain mints. The modules + wiring are authored and type-check, but the Sui toolchain isn't in this build environment, so **publishing and on-chain verification happen on your machine**.
 
-**External-collection PFP** ([ExternalPfpLinker.tsx](components/ExternalPfpLinker.tsx), [/api/pfp/verify](app/api/pfp/verify/route.ts), migration [005_external_pfp.sql](supabase/migrations/005_external_pfp.sql)): opt-in, power-user, read-only. Lives collapsed inside Settings — **behind** the free Sui Builder ID, never in front of it. Flow: link an EVM wallet by signing a SIWE-style message ([lib/siwe.ts](lib/siwe.ts), no funds move) → server verifies the signature via `viem` (`verifyMessage`, ERC-6492-aware so it covers both EOAs and smart-contract wallets) → checks the collection against an **allowlist** ([lib/externalCollections.ts](lib/externalCollections.ts) — generic, licence-gated; WhatsVP never bundles third-party art) → verifies ownership **read-only** via the Alchemy NFT API → the verified image renders as the avatar with a teal ring. `pfp_*` columns on `profiles` are `REVOKE`d from client roles, so only this server route can set them. `viem` is lazy-loaded (`next/dynamic`) so it never ships to users who don't open this section — confirmed it keeps the main bundle at ~82 kB instead of the ~135 kB it hit when statically imported.
+**External-collection PFP** ([ExternalPfpLinker.tsx](components/ExternalPfpLinker.tsx), [/api/pfp/verify](app/api/pfp/verify/route.ts), migration [005_external_pfp.sql](supabase/migrations/005_external_pfp.sql)): opt-in, power-user, read-only. Lives collapsed inside Settings — **behind** the free Sui Passport, never in front of it. Flow: link an EVM wallet by signing a SIWE-style message ([lib/siwe.ts](lib/siwe.ts), no funds move) → server verifies the signature via `viem` (`verifyMessage`, ERC-6492-aware so it covers both EOAs and smart-contract wallets) → checks the collection against an **allowlist** ([lib/externalCollections.ts](lib/externalCollections.ts) — generic, licence-gated; WhatsVP never bundles third-party art) → verifies ownership **read-only** via the Alchemy NFT API → the verified image renders as the avatar with a teal ring. `pfp_*` columns on `profiles` are `REVOKE`d from client roles, so only this server route can set them. `viem` is lazy-loaded (`next/dynamic`) so it never ships to users who don't open this section — confirmed it keeps the main bundle at ~82 kB instead of the ~135 kB it hit when statically imported.
 
 > **To activate Upgrade 4:** get a free key at [alchemy.com](https://www.alchemy.com) and set `EVM_NFT_API_KEY`. Without it the route returns 503 and the rest of the app is unaffected. The SIWE message build/parse logic is unit-tested; the live signature-verification + ownership-check path needs a real Alchemy key to exercise (not available in this build environment).
+
+### v3 — "Every community, live on the map"
+
+Repositioning: **"The live map of the KL builder scene"** → **"Your city's communities, live."** WhatsVP is horizontal community infrastructure, not a crypto/founder-only app — the codebase never assumes the user is a "builder."
+
+| P | Scope | State |
+|---|---|---|
+| **1** | Reposition + fix pass — renames, copy audit, mixed seed data, responsive nav, design tokens | ✅ Built |
+| 2 | Map 2.0 — bottom sheet + carousel, time scrubber, presence via check-ins | ⏳ |
+| 3 | Core loop — check-in (QR/geofence) → Stamp (new Move module) → Passport, organizer analytics | ⏳ |
+| 4 | Chat 2.0 — guild channels, ephemeral event rooms + photo drops, DMs + mutuals, PWA/push | ⏳ |
+| 5 | Landing & growth — logged-out map hero, SSR `/e/[slug]` `/g/[slug]`, OG images, WhatsApp share | ⏳ |
+
+**P1 — the auntie test.** `BuilderId` renamed to **Passport** everywhere (Move module [passport.move](move/whatsvp/sources/passport.move), types, routes, UI — nothing was on-chain yet, so this was free). [lib/copy.ts](lib/copy.ts) is now the canonical, grep-able registry of user-facing vocabulary — forbidden words (NFT, wallet, mint, on-chain, blockchain, crypto, Web3, token, gas, Sui, address) are audited out of every component/route except `Settings → Advanced`, which is the one place chain details may appear. [lib/demoEvents.ts](lib/demoEvents.ts) + [seed.sql](supabase/seed.sql) now seed **7 guilds across 8 community types** (run club, photography, badminton, food, student society, board games, founders, Web3) — a Web3 meetup is one community among many, not the default.
+
+**Responsive nav.** [TabBar.tsx](components/TabBar.tsx) — a bottom tab bar (Map/Guilds/Chat/Passport) on `<md` screens; desktop keeps the header's top nav (`how/guilds/organize/chat`). Organize becomes a floating "+" on mobile. MapContainer's four independent drawer-open booleans were replaced with a single `activeDrawer` state — this was also a confirmed audit finding (drawers could stack with undefined dismiss behaviour), fixed as a natural byproduct of building tab-highlighting.
+
+**Design tokens.** `app/globals.css` gained `surface`/`sub`/`info` CSS-variable tokens (light + dark, exact v3 hex values) alongside the existing `paper`/`ink`/`teal`/`live`/`upcoming`/`hairline`; `tailwind.config.ts` gained a type scale (`text-body`, `text-h1`, …) and named radii (`rounded-control`/`card`/`sheet`) for new components to opt into. Satoshi font swap and framer-motion are deferred to the P2 redesign pass — nothing in P1 needed them, and adding either now would be premature.
 
 ---
 
@@ -197,22 +215,23 @@ app/
     guilds/[slug]/route.ts  guild detail (read) + owner branding (PATCH)
     guilds/join/route.ts    join/leave a guild
     building/route.ts       community building-photo upload → event
-    avatars/list/route.ts   owned Builder ID + cosmetics (Sui RPC, read-only)
+    avatars/list/route.ts   owned Passport + cosmetics (Sui RPC, read-only)
     pfp/verify/route.ts     external-collection PFP: SIWE verify + ownership check
 components/
   Providers.tsx           theme + react-query + SuiClientProvider + Enoki + toast + auth
   MapContainer.tsx        client orchestrator (state, data fetch, gating, guild filter)
   Map.tsx                 MapLibre: theme-aware style, clustering, 3D buildings, iso overlay
   IsoBuilding.tsx         isometric SVG landmark renderer + photo-card renderer
-  Header.tsx              wordmark + nav (how/guilds/organize/chat) + theme toggle + user chip
+  Header.tsx              slim top bar: wordmark + tagline (lg+) + desktop nav + theme toggle + user chip
+  TabBar.tsx              bottom tab bar (Map/Guilds/Chat/Passport) — mobile only
   FilterCard.tsx           search + chips + near-me
   EventPopup.tsx           event detail + RSVP + share + calendar + transit + directions
   OrganizeDrawer.tsx       paste-a-Luma-link form (gated)
   ChatDrawer.tsx           groups → topics → Supabase Realtime messages
   GuildsDrawer.tsx         guild directory + guild home (roster/events/join) + create
-  SettingsDrawer.tsx       Sui address + balance + Builder ID + cosmetics + external PFP + top-up
-  ExternalPfpLinker.tsx    opt-in EVM wallet link + NFT ownership verify (lazy-loaded)
-  BuilderIdMinter.tsx      silent, gasless Builder ID auto-mint on first login
+  SettingsDrawer.tsx       account + balance (Advanced) + Passport + cosmetics + external avatar + top-up
+  ExternalPfpLinker.tsx    opt-in external wallet link + ownership verify (lazy-loaded)
+  PassportMinter.tsx       silent, gasless Passport auto-mint on first login
 lib/
   types.ts                shared types
   utils.ts                status derivation, formatting, haversine, filtering
@@ -222,16 +241,17 @@ lib/
   sui-move.ts             Move package tx builders, gated on isMoveConfigured()
   jwt.ts                  HS256 Supabase JWT sign/verify (server-only, no deps)
   authMessage.ts          Sui login-message build/parse (signature-proof login)
-  siwe.ts                 EVM link-message build/parse (external PFP proof)
+  siwe.ts                 EVM link-message build/parse (external avatar proof)
   buildings.ts            landmark resolution by key or proximity
-  externalCollections.ts  allowlisted NFT collections (licence-gated, no bundled art)
+  externalCollections.ts  allowlisted collections (licence-gated, no bundled art)
+  copy.ts                 canonical user-facing vocabulary registry (the auntie test)
   auth.tsx                <AuthProvider> — login/logout, profile, session token
   theme.tsx               <ThemeProvider> — light/dark, persisted, no-flash
   toast.tsx               <ToastProvider> — feedback for every user action
   apiAuth.ts              requireProfile() — JWT → profile for service-role routes
   supabase/client.ts      browser anon + authed (+ Realtime-authed) clients
   supabase/server.ts      service-role client (server-only)
-move/whatsvp/             Sui Move package: builder_id, guild, cosmetics modules
+move/whatsvp/             Sui Move package: passport, guild, cosmetics modules
 supabase/
   migrations/001_initial.sql     schema + RLS + Realtime
   migrations/002_auth.sql        re-point RLS at sui_address (JWT sub)

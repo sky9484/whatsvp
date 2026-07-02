@@ -5,7 +5,7 @@
  *
  * This is NOT an identity/auth mechanism — it only proves "this EVM address
  * signed this message", which the server then uses to check NFT ownership on
- * that address. The user's WhatsVP identity remains the Sui Builder ID.
+ * that address. The user's WhatsVP identity remains the Sui Passport.
  */
 
 const PREFIX = 'WhatsVP wants you to link this wallet';

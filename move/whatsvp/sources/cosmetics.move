@@ -3,7 +3,7 @@
 /// `Avatar` has `store`, so it can enter a Sui Kiosk and be sold/traded. A
 /// royalty-enabled `TransferPolicy<Avatar>` is published so WhatsVP earns on
 /// secondary sales. Purchases are priced in USDC with gas sponsored via Enoki.
-/// Cosmetics are NEVER required to onboard — the free soulbound Builder ID is the
+/// Cosmetics are NEVER required to onboard — the free soulbound Passport is the
 /// default identity; avatars only change appearance.
 module whatsvp::cosmetics;
 

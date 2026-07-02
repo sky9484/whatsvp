@@ -23,12 +23,12 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
   const [copied, setCopied] = useState(false);
   const [showTopUp, setShowTopUp] = useState(false);
   const [identity, setIdentity] = useState<{
-    builderId: unknown;
+    passport: unknown;
     cosmetics: unknown[];
     configured: boolean;
   } | null>(null);
 
-  // Read on-chain identity (Builder ID + cosmetics) when the drawer opens
+  // Read on-chain identity (Passport + cosmetics) when the drawer opens
   useEffect(() => {
     if (!isOpen || !address) return;
     let cancelled = false;
@@ -39,7 +39,7 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
         if (!cancelled) setIdentity(d);
       })
       .catch(() => {
-        if (!cancelled) setIdentity({ builderId: null, cosmetics: [], configured: false });
+        if (!cancelled) setIdentity({ passport: null, cosmetics: [], configured: false });
       });
     return () => {
       cancelled = true;
@@ -150,11 +150,11 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
               </div>
             </div>
 
-            {/* Wallet — the ONLY place the Sui address is shown */}
+            {/* Account (Advanced) — the ONLY place the Sui address is shown */}
             <div className="rounded-xl border border-hairline p-3.5 bg-ink/[0.02]">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-ink/50 uppercase tracking-wide">
-                  Your wallet
+                  Your account · Advanced
                 </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-ink/10 text-ink/50 uppercase">
                   {SUI_NETWORK}
@@ -186,13 +186,13 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
               </div>
             </div>
 
-            {/* Identity — free soulbound Builder ID + cosmetic avatars */}
+            {/* Identity — free Passport + cosmetic avatars */}
             <div className="rounded-xl border border-hairline p-3.5">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-ink">Your Builder ID</span>
-                {identity?.builderId ? (
+                <span className="text-sm font-medium text-ink">Your Passport</span>
+                {identity?.passport ? (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-teal/15 text-teal font-medium uppercase">
-                    Minted
+                    Active
                   </span>
                 ) : (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-ink/10 text-ink/50 font-medium uppercase">
@@ -202,10 +202,10 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
               </div>
               <p className="mt-1 text-xs text-ink/50">
                 {identity?.configured === false
-                  ? 'Your free identity mints automatically on first login — no fees, no crypto needed.'
-                  : identity?.builderId
-                  ? 'Your soulbound identity for the KL builder scene.'
-                  : 'Minting your free identity… it lands shortly after you sign in.'}
+                  ? 'Your free Passport is created automatically when you sign in — nothing to buy, nothing to set up.'
+                  : identity?.passport
+                  ? "Your passport to every community you're part of."
+                  : 'Setting up your Passport… it’s ready shortly after you sign in.'}
               </p>
 
               {/* Cosmetic avatars (optional, tradable) */}
@@ -248,7 +248,7 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
                 </span>
               </div>
               <p className="mt-1 text-xs text-ink/50">
-                Add USDC to your account — gas is sponsored, so you never need SUI.
+                Add funds to your account — no extra fees, nothing else to set up.
               </p>
 
               {!showTopUp ? (

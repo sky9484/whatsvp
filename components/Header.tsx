@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
+import { TAGLINE } from '@/lib/copy';
 
 interface HeaderProps {
   onGuilds: () => void;
@@ -18,14 +19,17 @@ export default function Header({ onGuilds, onOrganize, onChat, onOpenSettings }:
     profile?.display_name?.trim()?.[0]?.toUpperCase() ?? 'B';
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-paper/90 backdrop-blur-md border-b border-hairline flex items-center px-4 sm:px-6">
-      {/* Wordmark */}
-      <div className="flex-none font-semibold text-[17px] text-ink tracking-tight select-none">
-        Whats<span className="text-teal">VP</span>
+    <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-paper/90 backdrop-blur-md border-b border-hairline flex items-center justify-between px-4 sm:px-6">
+      {/* Wordmark + tagline (tagline hidden on mobile to keep the bar slim) */}
+      <div className="flex-none flex items-baseline gap-2 select-none">
+        <span className="font-semibold text-[17px] text-ink tracking-tight">
+          Whats<span className="text-teal">VP</span>
+        </span>
+        <span className="hidden lg:inline text-xs text-sub">{TAGLINE}</span>
       </div>
 
-      {/* Centre nav */}
-      <nav className="flex-1 flex justify-center gap-7 text-sm">
+      {/* Centre nav — desktop only; mobile uses the bottom TabBar instead */}
+      <nav className="hidden md:flex flex-1 justify-center gap-7 text-sm">
         <button
           className="text-ink/60 hover:text-ink active:scale-95 transition-all"
           onClick={() =>
@@ -87,7 +91,7 @@ export default function Header({ onGuilds, onOrganize, onChat, onOpenSettings }:
               <img
                 src={profile.pfp_image_url}
                 alt=""
-                title="Verified external PFP"
+                title="Verified collectible avatar"
                 className="w-7 h-7 rounded-full object-cover ring-2 ring-teal"
               />
             ) : profile?.avatar_url ? (

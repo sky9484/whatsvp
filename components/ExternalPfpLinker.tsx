@@ -19,7 +19,7 @@ function getInjectedProvider(): EthereumProvider | null {
 
 /**
  * Opt-in, power-user-only external-collection PFP linker (v2 Upgrade 4).
- * Lives collapsed inside Settings, well behind the free Sui Builder ID — a
+ * Lives collapsed inside Settings, well behind the free Sui Passport — a
  * mainstream user never needs to open this. Links an EVM wallet via a signed
  * message (no funds move, no bridge) and verifies NFT ownership server-side,
  * read-only, before the image can be used as an avatar.
@@ -44,7 +44,7 @@ export default function ExternalPfpLinker() {
       return;
     }
     if (!tokenId.trim()) {
-      setError('Enter the token # you own in that collection.');
+      setError('Enter the item # you own in that collection.');
       return;
     }
 
@@ -73,7 +73,7 @@ export default function ExternalPfpLinker() {
         setError(data.error ?? 'Verification failed');
         return;
       }
-      toast.show(`Verified! Using your ${collection.name} #${tokenId} as PFP.`, 'success');
+      toast.show(`Verified! Using your ${collection.name} #${tokenId} as your avatar.`, 'success');
       setExpanded(false);
       setTokenId('');
     } catch (e) {
@@ -88,7 +88,7 @@ export default function ExternalPfpLinker() {
     setBusy(true);
     try {
       await fetch('/api/pfp/verify', { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-      toast.show('External PFP removed', 'success');
+      toast.show('External avatar removed', 'success');
     } finally {
       setBusy(false);
     }
@@ -101,8 +101,8 @@ export default function ExternalPfpLinker() {
         className="w-full flex items-center justify-between text-left"
       >
         <span>
-          <span className="text-sm font-medium text-ink">External collection PFP</span>
-          <span className="block text-[11px] text-ink/40 mt-0.5">Optional · power users · read-only wallet check</span>
+          <span className="text-sm font-medium text-ink">External collectible avatar</span>
+          <span className="block text-[11px] text-ink/40 mt-0.5">Optional · advanced · read-only ownership check</span>
         </span>
         <span className="text-ink/40 text-xs">{expanded ? '−' : '+'}</span>
       </button>
@@ -110,9 +110,9 @@ export default function ExternalPfpLinker() {
       {expanded && (
         <div className="mt-3 space-y-2">
           <p className="text-xs text-ink/50">
-            Prove you own an NFT from an allowlisted collection and use it as your PFP. This links
-            an EVM wallet by signature only — no funds move, nothing is bridged, and your WhatsVP
-            account stays your Sui Builder ID.
+            Prove you own an item from an allowlisted collection and use it as your avatar. This
+            links an external wallet by signature only — no funds move, nothing is bridged, and
+            your WhatsVP account stays your Passport.
           </p>
 
           <select
@@ -130,7 +130,7 @@ export default function ExternalPfpLinker() {
           <input
             value={tokenId}
             onChange={(e) => setTokenId(e.target.value.replace(/\D/g, ''))}
-            placeholder="Token #"
+            placeholder="Item #"
             inputMode="numeric"
             className="w-full px-3 py-2 rounded-lg border border-hairline bg-paper text-sm"
           />

@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 
 import Header from './Header';
+import TabBar from './TabBar';
 import FilterCard from './FilterCard';
 import EventPopup from './EventPopup';
 import OrganizeDrawer from './OrganizeDrawer';
@@ -31,15 +32,16 @@ const Map = dynamic(() => import('./Map'), {
   ),
 });
 
+type DrawerKey = 'organize' | 'settings' | 'chat' | 'guilds' | null;
+
 export default function MapContainer() {
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [filter, setFilter] = useState<EventFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [organizeOpen, setOrganizeOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [guildsOpen, setGuildsOpen] = useState(false);
+  // Single source of truth for which drawer is open — at most one at a time.
+  // (Four independent booleans previously let drawers stack with undefined dismiss behavior.)
+  const [activeDrawer, setActiveDrawer] = useState<DrawerKey>(null);
   const [guildFilter, setGuildFilter] = useState<Guild | null>(null);
   const [geolocateTrigger, setGeolocateTrigger] = useState(0);
   const [buildingFocus, setBuildingFocus] = useState<BuildingFocus | null>(null);
@@ -133,9 +135,9 @@ export default function MapContainer() {
     []
   );
 
-  // Organize and chat are gated behind login — prompt sign-in if logged out.
+  // Organize, chat and passport are gated behind login — prompt sign-in if logged out.
   const handleOrganize = useCallback(() => {
-    if (address) setOrganizeOpen(true);
+    if (address) setActiveDrawer('organize');
     else login();
   }, [address, login]);
 
@@ -144,8 +146,18 @@ export default function MapContainer() {
       login();
       return;
     }
-    setChatOpen(true);
+    setActiveDrawer('chat');
   }, [address, login]);
+
+  const handlePassport = useCallback(() => {
+    if (!address) {
+      login();
+      return;
+    }
+    setActiveDrawer('settings');
+  }, [address, login]);
+
+  const closeDrawer = useCallback(() => setActiveDrawer(null), []);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-paper">
@@ -159,11 +171,31 @@ export default function MapContainer() {
 
       {/* Top header */}
       <Header
-        onGuilds={() => setGuildsOpen(true)}
+        onGuilds={() => setActiveDrawer('guilds')}
         onOrganize={handleOrganize}
         onChat={handleChat}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={handlePassport}
       />
+
+      {/* Bottom tab bar — mobile only; desktop uses the header's top nav.
+          'organize' has no tab (it's the floating +), so it maps back to 'map'. */}
+      <TabBar
+        active={activeDrawer === 'settings' ? 'passport' : activeDrawer === 'guilds' ? 'guilds' : activeDrawer === 'chat' ? 'chat' : 'map'}
+        onMap={closeDrawer}
+        onGuilds={() => setActiveDrawer('guilds')}
+        onChat={handleChat}
+        onPassport={handlePassport}
+      />
+
+      {/* Floating "+" — mobile-only entry point for Organize (desktop uses the header nav) */}
+      <button
+        onClick={handleOrganize}
+        aria-label="Organize an event"
+        className="md:hidden fixed right-4 bottom-20 z-30 w-14 h-14 rounded-full bg-teal text-white
+                   shadow-lg flex items-center justify-center text-2xl font-light active:scale-95 transition-transform"
+      >
+        +
+      </button>
 
       {/* Active guild filter chip */}
       {guildFilter && (
@@ -192,9 +224,9 @@ export default function MapContainer() {
         eventCounts={eventCounts}
       />
 
-      {/* Live-presence indicator */}
+      {/* Live-presence indicator — sits above the mobile tab bar */}
       {eventCounts.live > 0 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+        <div className="absolute bottom-20 md:bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
           <span className="inline-flex items-center gap-2 bg-paper/90 backdrop-blur-md rounded-full pl-2.5 pr-3.5 py-1.5 border border-hairline shadow-lg">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full rounded-full bg-live opacity-70 animate-ping" />
@@ -207,9 +239,9 @@ export default function MapContainer() {
         </div>
       )}
 
-      {/* Demo-data badge (shown until Supabase is configured) */}
+      {/* Demo-data badge (shown until Supabase is configured) — sits above the mobile tab bar */}
       {demoMode && (
-        <div className="absolute bottom-4 left-4 z-20 pointer-events-none">
+        <div className="absolute bottom-20 md:bottom-4 left-4 z-20 pointer-events-none">
           <span className="inline-flex items-center gap-1.5 bg-paper/90 backdrop-blur-md rounded-full px-3 py-1 border border-hairline text-[11px] font-medium text-ink/55 shadow">
             <span className="w-1.5 h-1.5 rounded-full bg-upcoming" />
             Demo data · connect Supabase for live events
@@ -219,7 +251,7 @@ export default function MapContainer() {
 
       {/* Empty state */}
       {!loading && visibleEvents.length === 0 && (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+        <div className="absolute bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
           <div className="bg-paper/90 backdrop-blur-md rounded-xl px-5 py-3 border border-hairline text-sm text-ink/60 text-center shadow">
             {searchQuery
               ? `No events matching "${searchQuery}"`
@@ -270,27 +302,27 @@ export default function MapContainer() {
 
       {/* Organize drawer */}
       <OrganizeDrawer
-        isOpen={organizeOpen}
-        onClose={() => setOrganizeOpen(false)}
+        isOpen={activeDrawer === 'organize'}
+        onClose={closeDrawer}
         onEventAdded={handleEventAdded}
       />
 
-      {/* Settings drawer (wallet + balance + top-up) */}
+      {/* Settings drawer (account + balance + Passport + top-up) */}
       <SettingsDrawer
-        isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+        isOpen={activeDrawer === 'settings'}
+        onClose={closeDrawer}
       />
 
       {/* Chat drawer (groups + topics + realtime messages) */}
       <ChatDrawer
-        isOpen={chatOpen}
-        onClose={() => setChatOpen(false)}
+        isOpen={activeDrawer === 'chat'}
+        onClose={closeDrawer}
       />
 
       {/* Guilds drawer (directory + guild home + create) */}
       <GuildsDrawer
-        isOpen={guildsOpen}
-        onClose={() => setGuildsOpen(false)}
+        isOpen={activeDrawer === 'guilds'}
+        onClose={closeDrawer}
         onShowGuildEvents={handleShowGuildEvents}
       />
     </div>

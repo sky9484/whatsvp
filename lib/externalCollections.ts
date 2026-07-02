@@ -6,7 +6,7 @@
  * holder has commercial rights to their own penguin via OverpassIP) — the holder
  * uses THEIR OWN penguin as a PFP; WhatsVP hosts no Pudgy art.
  *
- * This whole feature sits behind the free Sui Builder ID, is strictly opt-in, and
+ * This whole feature sits behind the free Sui Passport, is strictly opt-in, and
  * is never required to onboard — mainstream users never see it.
  */
 

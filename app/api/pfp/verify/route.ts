@@ -12,7 +12,7 @@ import { findAllowedCollection, alchemyNetwork } from '@/lib/externalCollections
  *
  * Opt-in, read-only external-PFP verification (Upgrade 4). Flow:
  *   1. Caller must already be logged in (Supabase session JWT) — this sits
- *      BEHIND the free Sui Builder ID, never in front of it.
+ *      BEHIND the free Sui Passport, never in front of it.
  *   2. The posted `message` is a SIWE-style message (lib/siwe.ts) the user signed
  *      with their EVM wallet, naming their own Sui address — verified here via
  *      viem (supports both EOA and ERC-1271 smart-contract wallets).
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
 
   if (!ownsToken) {
     return Response.json(
-      { error: `That address does not own token #${token_id} in ${collection.name}` },
+      { error: `That account does not own item #${token_id} in ${collection.name}` },
       { status: 403 }
     );
   }

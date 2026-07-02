@@ -48,7 +48,7 @@ Repositioning: **"The live map of the KL builder scene"** → **"Your city's com
 |---|---|---|
 | **1** | Reposition + fix pass — renames, copy audit, mixed seed data, responsive nav, design tokens | ✅ Built |
 | **2** | Map 2.0 — bottom sheet + carousel, time scrubber | ✅ Built (presence via check-ins deferred to P3) |
-| 3 | Core loop — check-in (QR/geofence) → Stamp (new Move module) → Passport, organizer analytics | ⏳ |
+| **3** | Core loop — check-in (QR/geofence) → Stamp (new Move module) → Passport, organizer analytics | ✅ Built |
 | 4 | Chat 2.0 — guild channels, ephemeral event rooms + photo drops, DMs + mutuals, PWA/push | ⏳ |
 | 5 | Landing & growth — logged-out map hero, SSR `/e/[slug]` `/g/[slug]`, OG images, WhatsApp share | ⏳ |
 
@@ -59,6 +59,16 @@ Repositioning: **"The live map of the KL builder scene"** → **"Your city's com
 **Design tokens.** `app/globals.css` gained `surface`/`sub`/`info` CSS-variable tokens (light + dark, exact v3 hex values) alongside the existing `paper`/`ink`/`teal`/`live`/`upcoming`/`hairline`; `tailwind.config.ts` gained a type scale (`text-body`, `text-h1`, …) and named radii (`rounded-control`/`card`/`sheet`) for new components to opt into. Satoshi font swap and framer-motion are deferred to the P2 redesign pass — nothing in P1 needed them, and adding either now would be premature.
 
 **P2 — Map 2.0.** Mobile gets a **draggable bottom sheet** ([EventSheet.tsx](components/EventSheet.tsx), `framer-motion`) instead of the floating popup: peek (a synced horizontal card carousel) → half → full, with drag + velocity-biased snapping. Swiping the carousel flies the map to that pin; tapping a pin scrolls the carousel to match. Desktop keeps [EventPopup.tsx](components/EventPopup.tsx) — both now share [lib/useEventDetail.ts](lib/useEventDetail.ts) (transit/RSVP/share/building-upload state) and [EventDetailContent.tsx](components/EventDetailContent.tsx) (the rendered detail body), so a 5th detail surface didn't mean a 5th copy of the logic — a direct fix for the audit's "duplicated drawer chrome" finding. [FilterCard.tsx](components/FilterCard.tsx) was replaced by [SearchBar.tsx](components/SearchBar.tsx) (search + near-me only) plus a new **time scrubber** ([TimeScrubber.tsx](components/TimeScrubber.tsx)) — five segments (Live now / Today / Tomorrow / This week / Past 10 days) computed KL-timezone-safe in [lib/utils.ts](lib/utils.ts) (`matchesSegment`/`segmentCounts`), replacing the old live/upcoming/past status chips. Clustering and theme-aware basemap swapping (v2 Upgrade 1) were untouched by this pass and re-verified working. **Presence** ("N here now" on pins) is spec'd in the v3 brief but genuinely depends on P3's `checkins` table — it's deferred rather than faked with timestamp math dressed up as presence.
+
+**P3 — Check-in → Stamp → Passport.** The retention loop: attend a live event → check in → collect a Stamp → watch your Passport fill up.
+
+- **Check-in** ([/api/checkin](app/api/checkin/route.ts)): two server-verified methods, both requiring login and enforcing one check-in per profile per event (`UNIQUE(event_id, profile_id)`). **Geofence** — the browser's location, checked server-side against the venue (≤300 m, haversine) and the event's time window (30 min before start through 30 min after end); only a coarse SHA-256 hash of the coordinates is stored, never raw lat/lng. **QR** — a TOTP-style code ([lib/checkinCode.ts](lib/checkinCode.ts), dep-free HMAC, mirrors [lib/jwt.ts](lib/jwt.ts)'s approach) that rotates every 30 seconds, keyed off a per-event secret (`events.checkin_secret`, `REVOKE`d from every client DB role — even `SELECT *` on `events` had to become an explicit column list, since Postgres refuses a wildcard select the instant any column's read is revoked). The organizer displays the live code as a QR ([CheckinQR.tsx](components/CheckinQR.tsx)); scanning it opens [/checkin/[event_id]](app/checkin/[event_id]/page.tsx), which auto-submits once the scanner is signed in.
+- **Stamp** ([stamp.move](move/whatsvp/sources/stamp.move), [lib/sui-admin.ts](lib/sui-admin.ts)): a soulbound proof-of-attendance, minted only after the check-in above succeeds — **the direct fix for the guild.move audit finding**. Unlike Passport/GuildBadge/cosmetics (all client-signed, Enoki-sponsored), `stamp::mint_to` is gated behind a backend-held `AdminCap` that is `key`-only (no `store` — the other audit fix, learned from `cosmetics::MintCap`) and never reachable from a client-built transaction; the backend signs with its own funded keypair (a hot-wallet pattern, not per-user sponsorship). `/api/checkin` mints fire-and-forget via Next's `after()` so the check-in response doesn't wait on-chain, with one retry on failure. Stamp art is a deterministic generated SVG ([/api/stamp-image/[event_id]](app/api/stamp-image/[event_id]/route.ts)) — same honesty principle as `IsoPhotoBuilding`, not an image model.
+- **Passport page** ([app/passport/page.tsx](app/passport/page.tsx)): every Stamp collected, a milestone progress line (First stamp → Regular → Explorer → Legend — display/recognition only, no fake "unlocks"), reachable from the TabBar's Passport tab and Settings. The TabBar's Guilds/Chat tabs still open drawers over the map, but Passport now navigates to a real, shareable page — [MapContainer.tsx](components/MapContainer.tsx) honors a one-shot `?open=guilds|chat` param on mount so linking back from Passport can still reopen the right drawer.
+- **Organizer analytics** ([/guilds/[slug]/events/[id]/manage](app/guilds/[slug]/events/[id]/manage/page.tsx)): RSVPs vs. check-ins, a check-in timeline sparkline, attendee list, CSV export (fetched client-side with the auth header and downloaded via a Blob URL, since a plain `<a href>` can't carry a bearer token), and the organizer's live QR code. Reachable via a "Manage" link on your own events inside the Guilds drawer.
+- Schema: [006_checkins.sql](supabase/migrations/006_checkins.sql) — renumbered from the brief's proposed `005` to avoid colliding with the real `005_external_pfp.sql` from v2 Upgrade 4.
+
+> **To activate on-chain Stamps:** publish `move/whatsvp` (now including `stamp.move`) to testnet, fund a backend address with a small amount of SUI, transfer that address the `AdminCap` from the module's `init`, and set `STAMP_REGISTRY_ID` / `STAMP_ADMIN_CAP_ID` / `STAMP_ADMIN_PRIVATE_KEY`. Without them, check-ins work fully — they're just recorded in Postgres only, exactly the same graceful degradation as every other Move feature in this app.
 
 ---
 
@@ -101,6 +111,7 @@ Fill in the keys. **Minimum to see the map running:** none — it falls back to 
 | `CRON_SECRET` | Any random string; also set it in Vercel env | Securing the cron endpoint |
 | `NEXT_PUBLIC_ENOKI_API_KEY` / `ENOKI_SECRET_KEY` | [portal.enoki.mystenlabs.com](https://portal.enoki.mystenlabs.com) | Phase 2 login |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | [console.cloud.google.com](https://console.cloud.google.com) → Credentials → OAuth client | Phase 2 login |
+| `STAMP_REGISTRY_ID` / `STAMP_ADMIN_CAP_ID` / `STAMP_ADMIN_PRIVATE_KEY` | From publishing `move/whatsvp` + funding a backend address (see below) | v3 P3 on-chain Stamps |
 
 ### 3. Database
 
@@ -208,6 +219,9 @@ app/
   layout.tsx              root layout + metadata + theme no-flash script
   page.tsx                renders <MapContainer/>
   globals.css             Tailwind + CSS vars (light/dark) + pin/drawer/iso styles
+  passport/page.tsx       your collected Stamps + milestone progress (v3 P3)
+  checkin/[event_id]/page.tsx  QR-scan landing page — auto check-in once signed in (v3 P3)
+  guilds/[slug]/events/[id]/manage/page.tsx  organizer attendance analytics (v3 P3)
   api/
     ingest-luma/route.ts    cron: curated calendar → events
     organize/route.ts       paste a Luma URL → event (tags host from session)
@@ -217,9 +231,14 @@ app/
     guilds/route.ts         list/create guilds
     guilds/[slug]/route.ts  guild detail (read) + owner branding (PATCH)
     guilds/join/route.ts    join/leave a guild
+    guilds/[slug]/events/[id]/manage/route.ts  organizer analytics + CSV export (v3 P3)
     building/route.ts       community building-photo upload → event
     avatars/list/route.ts   owned Passport + cosmetics (Sui RPC, read-only)
     pfp/verify/route.ts     external-collection PFP: SIWE verify + ownership check
+    checkin/route.ts        verify + record a check-in, fire-and-forget Stamp mint (v3 P3)
+    checkin/qr/[event_id]/route.ts  host-only rotating check-in code (v3 P3)
+    stamp-image/[event_id]/route.ts  deterministic generated Stamp SVG (v3 P3)
+    passport/route.ts       my profile + every Stamp collected (v3 P3)
 components/
   Providers.tsx           theme + react-query + SuiClientProvider + Enoki + toast + auth
   MapContainer.tsx        client orchestrator (state, data fetch, gating, guild filter)
@@ -238,10 +257,13 @@ components/
   SettingsDrawer.tsx       account + balance (Advanced) + Passport + cosmetics + external avatar + top-up
   ExternalPfpLinker.tsx    opt-in external wallet link + ownership verify (lazy-loaded)
   PassportMinter.tsx       silent, gasless Passport auto-mint on first login
+  CheckinQR.tsx            organizer's self-refreshing rotating check-in QR (v3 P3)
 lib/
   types.ts                shared types
-  utils.ts                status derivation, formatting, haversine, filtering, time-segment matching
-  useEventDetail.ts       shared event-detail state/actions (transit, RSVP, share, building upload)
+  utils.ts                status derivation, formatting, haversine, filtering, time-segment matching, check-in window
+  useEventDetail.ts       shared event-detail state/actions (transit, RSVP, share, building upload, check-in)
+  checkinCode.ts          dep-free HMAC TOTP-style rotating check-in code (server-only)
+  sui-admin.ts            backend Sui signer for AdminCap-gated Stamp mints (server-only, v3 P3)
   luma.ts                 Luma API + HTML parsing (server-only usage)
   gtfs.ts                 GTFS-Static parse + frequency-based next-departure (server-only)
   sui.ts / sui-server.ts  network config, formatting / server-only Sui RPC client
@@ -258,13 +280,14 @@ lib/
   apiAuth.ts              requireProfile() — JWT → profile for service-role routes
   supabase/client.ts      browser anon + authed (+ Realtime-authed) clients
   supabase/server.ts      service-role client (server-only)
-move/whatsvp/             Sui Move package: passport, guild, cosmetics modules
+move/whatsvp/             Sui Move package: passport, guild, cosmetics, stamp modules
 supabase/
   migrations/001_initial.sql     schema + RLS + Realtime
   migrations/002_auth.sql        re-point RLS at sui_address (JWT sub)
   migrations/003_buildings.sql   building_key/building_image_url + Storage bucket
   migrations/004_guilds.sql      guilds + guild_members + RLS (hardened)
   migrations/005_external_pfp.sql pfp_* columns, REVOKEd from client roles
+  migrations/006_checkins.sql    checkins table + events.checkin_secret/checkin_methods (v3 P3)
   seed.sql                       dev demo pins + landmark events + seed guild
 ```
 

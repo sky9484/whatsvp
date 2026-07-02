@@ -20,6 +20,8 @@ export function isMoveConfigured(): boolean {
 export const PASSPORT_TYPE = () => `${PACKAGE_ID}::passport::Passport`;
 export const AVATAR_TYPE = () => `${PACKAGE_ID}::cosmetics::Avatar`;
 export const GUILD_BADGE_TYPE = () => `${PACKAGE_ID}::guild::GuildBadge`;
+/** Stamp is server-minted only (see lib/sui-admin.ts) — this type id is for reads. */
+export const STAMP_TYPE = () => `${PACKAGE_ID}::stamp::Stamp`;
 
 /** Free soulbound Passport mint (one per address, enforced on-chain). */
 export function buildMintPassportTx(displayName: string): Transaction {

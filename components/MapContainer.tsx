@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 
 import Header from './Header';
@@ -51,6 +52,19 @@ export default function MapContainer() {
   const [demoMode, setDemoMode] = useState(false);
 
   const { address, login } = useAuth();
+  const router = useRouter();
+
+  // Honor ?open=guilds|chat from a cross-page nav (the Passport page's tab bar
+  // links back here since guilds/chat are drawers-over-the-map, not routes),
+  // then clean the URL. Read via window.location rather than useSearchParams
+  // so this stays a plain one-shot effect with no Suspense boundary required.
+  useEffect(() => {
+    const open = new URLSearchParams(window.location.search).get('open');
+    if (open === 'guilds' || open === 'chat') {
+      setActiveDrawer(open);
+      window.history.replaceState(null, '', '/');
+    }
+  }, []);
 
   // Initial events fetch
   useEffect(() => {
@@ -72,9 +86,15 @@ export default function MapContainer() {
         // events) OR that are still upcoming. Events with a null ends_at are kept via
         // the starts_at floor. Final live/past status is derived client-side.
         const floor = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
+        // Explicit column list (not '*'): checkin_secret is REVOKEd from the
+        // anon/authenticated roles this client runs as (it's an HMAC key, must
+        // never reach a browser), and a wildcard select would fail outright
+        // the moment any selected column isn't readable by the calling role.
         const { data, error } = await db
           .from('events')
-          .select('*')
+          .select(
+            'id, source, luma_url, title, description, venue_name, lat, lng, starts_at, ends_at, cover_url, host_id, created_at, building_key, building_image_url, guild_id, checkin_methods'
+          )
           .gte('starts_at', floor)
           .order('starts_at', { ascending: true });
 
@@ -156,6 +176,16 @@ export default function MapContainer() {
     setActiveDrawer('settings');
   }, [address, login]);
 
+  // The TabBar's Passport tab navigates to the real /passport page (a
+  // shareable, page-like collection view) rather than opening a drawer.
+  const handleViewPassport = useCallback(() => {
+    if (!address) {
+      login();
+      return;
+    }
+    router.push('/passport');
+  }, [address, login, router]);
+
   const closeDrawer = useCallback(() => setActiveDrawer(null), []);
 
   // Shared by EventPopup (desktop) and EventSheet (mobile) — both act on
@@ -201,11 +231,11 @@ export default function MapContainer() {
       {/* Bottom tab bar — mobile only; desktop uses the header's top nav.
           'organize' has no tab (it's the floating +), so it maps back to 'map'. */}
       <TabBar
-        active={activeDrawer === 'settings' ? 'passport' : activeDrawer === 'guilds' ? 'guilds' : activeDrawer === 'chat' ? 'chat' : 'map'}
+        active={activeDrawer === 'guilds' ? 'guilds' : activeDrawer === 'chat' ? 'chat' : 'map'}
         onMap={closeDrawer}
         onGuilds={() => setActiveDrawer('guilds')}
         onChat={handleChat}
-        onPassport={handlePassport}
+        onPassport={handleViewPassport}
       />
 
       {/* Floating "+" — mobile-only entry point for Organize (desktop uses the header nav) */}

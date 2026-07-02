@@ -22,6 +22,8 @@ export interface RawEvent {
   building_image_url?: string | null;
   /** Guild this event belongs to, if any. */
   guild_id?: string | null;
+  /** Which check-in methods are enabled (v3 P3) — never includes checkin_secret. */
+  checkin_methods?: string[] | null;
 }
 
 export interface Event extends RawEvent {
@@ -103,6 +105,20 @@ export interface Message {
   body: string;
   created_at: string;
   // Joined for display (optional)
+  profiles?: { display_name: string; avatar_url?: string | null } | null;
+}
+
+/** A verified check-in (v3 P3) — the source of truth behind a Stamp. */
+export interface Checkin {
+  id: string;
+  event_id: string;
+  profile_id: string;
+  method: 'geofence' | 'qr';
+  created_at: string;
+  stamp_minted_at?: string | null;
+  stamp_tx_digest?: string | null;
+  // Optionally joined for display:
+  events?: Pick<RawEvent, 'id' | 'title' | 'venue_name' | 'starts_at' | 'ends_at' | 'cover_url'> | null;
   profiles?: { display_name: string; avatar_url?: string | null } | null;
 }
 

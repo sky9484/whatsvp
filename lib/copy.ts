@@ -69,6 +69,36 @@ export const SETTINGS_TOPUP = {
   previewNote: "Payments aren't live yet — this is a preview.",
 } as const;
 
+// ── Passport page (v3 P3) ───────────────────────────────────────────────────────
+export const PASSPORT_PAGE = {
+  title: 'Your Passport',
+  loginPrompt: 'Log in to see your Passport.',
+  stampsHeading: 'Stamps',
+  emptyTitle: 'No stamps yet.',
+  emptyHint: 'Check in at a live event to start your Passport.',
+  milestones: [
+    { count: 1, label: 'First stamp' },
+    { count: 5, label: 'Regular' },
+    { count: 10, label: 'Explorer' },
+    { count: 25, label: 'Legend' },
+  ],
+} as const;
+
+// ── Check-in (v3 P3) ────────────────────────────────────────────────────────────
+export const CHECKIN = {
+  cta: 'Check in',
+  busy: 'Checking in…',
+  successToast: "You're checked in — stamp added to your Passport.",
+  alreadyToast: "You're already checked in.",
+  tooFarError: "You're not close enough to this event to check in.",
+  notOpenError: "Check-in isn't open for this event right now.",
+  loginRequired: 'Log in to check in.',
+  qrScanTitle: 'Checking you in…',
+  qrExpiredError: 'That code has expired — ask the organizer to refresh it.',
+  organizerCodeTitle: 'Check-in code',
+  organizerCodeHint: 'Have attendees scan this to check in.',
+} as const;
+
 // ── Settings → External collectible avatar (opt-in, advanced) ──────────────────
 export const SETTINGS_EXTERNAL_AVATAR = {
   title: 'External collectible avatar',

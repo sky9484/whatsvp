@@ -6,6 +6,7 @@ import type { Event, TransitInfo } from './types';
 import { useAuth } from './auth';
 import { createClient, createAuthedClient } from './supabase/client';
 import { resolveLandmark } from './buildings';
+import { isCheckinWindowOpen } from './utils';
 
 /**
  * Shared state + actions for an event's detail view — transit, RSVP, share, and
@@ -24,6 +25,9 @@ export function useEventDetail(event: Event, onBuildingImage?: (url: string) => 
   const [shared, setShared] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState('');
+  const [checkedIn, setCheckedIn] = useState(false);
+  const [checkinBusy, setCheckinBusy] = useState(false);
+  const [checkinError, setCheckinError] = useState('');
 
   const anon = useMemo<SupabaseClient | null>(() => createClient(), []);
   const authed = useMemo<SupabaseClient | null>(() => createAuthedClient(token), [token]);
@@ -70,6 +74,29 @@ export function useEventDetail(event: Event, onBuildingImage?: (url: string) => 
       cancelled = true;
     };
   }, [event.id, anon, authed, profile]);
+
+  // My check-in status for this event
+  useEffect(() => {
+    let cancelled = false;
+    if (authed && profile) {
+      authed
+        .from('checkins')
+        .select('id')
+        .eq('event_id', event.id)
+        .eq('profile_id', profile.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (!cancelled) setCheckedIn(Boolean(data));
+        });
+    } else {
+      setCheckedIn(false);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [event.id, authed, profile]);
+
+  const checkinOpen = isCheckinWindowOpen(event) && (event.checkin_methods?.includes('geofence') ?? true);
 
   const toggleRsvp = async () => {
     if (!address) return login(); // gate behind login
@@ -123,6 +150,44 @@ export function useEventDetail(event: Event, onBuildingImage?: (url: string) => 
     }
   };
 
+  const checkIn = async () => {
+    if (!address) return login();
+    if (!authed || !token) {
+      setCheckinError('Sign-in session required.');
+      return;
+    }
+    setCheckinError('');
+    setCheckinBusy(true);
+    try {
+      if (!navigator.geolocation) throw new Error('Location is not available on this device.');
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10_000 })
+      ).catch((err: GeolocationPositionError) => {
+        throw new Error(
+          err.code === 1 ? 'Location permission is off — turn it on to check in.' : 'Could not get your location — try again.'
+        );
+      });
+
+      const res = await fetch('/api/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          event_id: event.id,
+          method: 'geofence',
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok && !data.already) throw new Error(data.error ?? 'Check-in failed');
+      setCheckedIn(true);
+    } catch (e) {
+      setCheckinError(e instanceof Error ? e.message : 'Check-in failed');
+    } finally {
+      setCheckinBusy(false);
+    }
+  };
+
   const share = async () => {
     const url = event.luma_url || window.location.href;
     const text = `${event.title} — on WhatsVP`;
@@ -149,11 +214,16 @@ export function useEventDetail(event: Event, onBuildingImage?: (url: string) => 
     shared,
     uploading,
     uploadErr,
+    checkedIn,
+    checkinBusy,
+    checkinError,
+    checkinOpen,
     googleMapsUrl,
     wazeUrl,
     calendarUrl,
     toggleRsvp,
     uploadBuilding,
+    checkIn,
     share,
   };
 }

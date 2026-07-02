@@ -33,11 +33,16 @@ export default function EventDetailContent({
     shared,
     uploading,
     uploadErr,
+    checkedIn,
+    checkinBusy,
+    checkinError,
+    checkinOpen,
     googleMapsUrl,
     wazeUrl,
     calendarUrl,
     toggleRsvp,
     uploadBuilding,
+    checkIn,
     share,
   } = useEventDetail(event, onBuildingImage);
 
@@ -179,6 +184,26 @@ export default function EventDetailContent({
             {shared ? 'Copied' : <ShareIcon />}
           </button>
         </div>
+
+        {/* Check-in — separate from RSVP: RSVP is intent, this is "I'm here". */}
+        {checkinOpen && (
+          <div className="mt-2">
+            {checkedIn ? (
+              <div className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-teal/10 text-teal text-sm font-medium">
+                <span aria-hidden>✓</span> Checked in — stamp added to your Passport
+              </div>
+            ) : (
+              <button
+                onClick={checkIn}
+                disabled={checkinBusy}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold bg-live text-white hover:bg-live/90 disabled:opacity-60 transition-colors"
+              >
+                {checkinBusy ? 'Checking in…' : '📍 Check in'}
+              </button>
+            )}
+            {checkinError && <p className="mt-1 text-xs text-live text-center">{checkinError}</p>}
+          </div>
+        )}
 
         {/* Secondary: directions */}
         <div className="mt-2 flex gap-2">

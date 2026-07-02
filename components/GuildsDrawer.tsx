@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -361,11 +362,20 @@ export default function GuildsDrawer({ isOpen, onClose, onShowGuildEvents }: Gui
                 <ul className="space-y-1.5">
                   {detail.events.map((e) => (
                     <li key={e.id} className="flex items-center gap-2.5 p-2 rounded-lg bg-ink/[0.03]">
-                      <span className="w-1.5 h-8 rounded-full" style={{ backgroundColor: detail.guild.color ?? '#1D9E75' }} />
-                      <span className="min-w-0">
+                      <span className="w-1.5 h-8 rounded-full flex-none" style={{ backgroundColor: detail.guild.color ?? '#1D9E75' }} />
+                      <span className="min-w-0 flex-1">
                         <span className="block text-sm font-medium text-ink truncate">{e.title}</span>
                         <span className="block text-xs text-ink/50 truncate">{e.venue_name}</span>
                       </span>
+                      {e.host_id === profile?.id && (
+                        <Link
+                          href={`/guilds/${detail.guild.slug}/events/${e.id}/manage`}
+                          onClick={onClose}
+                          className="flex-none text-xs font-medium text-teal hover:text-teal/70"
+                        >
+                          Manage
+                        </Link>
+                      )}
                     </li>
                   ))}
                 </ul>

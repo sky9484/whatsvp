@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useSuiClient } from '@mysten/dapp-kit';
 import { useAuth } from '@/lib/auth';
 import { shortenAddress, formatSui, SUI_NETWORK } from '@/lib/sui';
@@ -237,6 +238,15 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
                   </p>
                 )}
               </div>
+
+              <Link
+                href="/passport"
+                onClick={onClose}
+                className="mt-3 pt-3 border-t border-hairline flex items-center justify-between text-sm text-teal hover:text-teal/70 transition-colors"
+              >
+                View full Passport
+                <span aria-hidden>→</span>
+              </Link>
             </div>
 
             {/* Top-up — interface only (Phase 6). Clearly non-functional. */}

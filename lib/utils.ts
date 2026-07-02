@@ -54,6 +54,19 @@ export function formatEventTime(event: Pick<RawEvent, 'starts_at' | 'ends_at'>):
   return endStr ? `${dayLabel}, ${timeStr} – ${endStr}` : `${dayLabel}, ${timeStr}`;
 }
 
+const CHECKIN_WINDOW_PAD_MS = 30 * 60 * 1000;
+
+/**
+ * Whether "now" falls within an event's check-in window (30 min before start
+ * through 30 min after end). Shared by the client (button gating/hints) and
+ * /api/checkin (the authoritative check) so the two never drift apart.
+ */
+export function isCheckinWindowOpen(event: Pick<RawEvent, 'starts_at' | 'ends_at'>, now = Date.now()): boolean {
+  const start = new Date(event.starts_at).getTime();
+  const end = event.ends_at ? new Date(event.ends_at).getTime() : start + 3 * 60 * 60 * 1000;
+  return now >= start - CHECKIN_WINDOW_PAD_MS && now <= end + CHECKIN_WINDOW_PAD_MS;
+}
+
 /** Haversine distance in metres */
 export function distanceMetres(
   lat1: number, lng1: number,

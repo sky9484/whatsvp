@@ -6,7 +6,7 @@ import { useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 import AddFriendButton from './AddFriendButton';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
-import { withStatus } from '@/lib/utils';
+import { withStatus, whatsAppShareUrl } from '@/lib/utils';
 import { isMoveConfigured, buildMintGuildBadgeTx } from '@/lib/sui-move';
 import type { Guild, GuildMember, Event, RawEvent } from '@/lib/types';
 
@@ -337,6 +337,22 @@ export default function GuildsDrawer({ isOpen, onClose, onShowGuildEvents }: Gui
                     Show on map
                   </button>
                 )}
+                <a
+                  href={whatsAppShareUrl(
+                    detail.guild.name,
+                    typeof window !== 'undefined' ? `${window.location.origin}/g/${detail.guild.slug}` : `/g/${detail.guild.slug}`
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Share on WhatsApp"
+                  title="Share on WhatsApp"
+                  className="px-3 flex items-center rounded-xl border border-hairline text-ink hover:bg-ink/5 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17.47 14.38c-.29-.15-1.71-.84-1.97-.94-.27-.1-.46-.15-.66.15-.2.29-.76.94-.93 1.13-.17.2-.34.22-.63.07-.29-.15-1.22-.45-2.33-1.44-.86-.77-1.44-1.71-1.61-2-.17-.29-.02-.45.13-.6.13-.13.29-.34.44-.51.15-.17.2-.29.29-.49.1-.2.05-.37-.02-.51-.07-.15-.66-1.59-.9-2.18-.24-.57-.48-.5-.66-.51h-.56c-.2 0-.51.07-.78.37-.27.29-1.02 1-1.02 2.43 0 1.44 1.05 2.83 1.19 3.02.15.2 2.06 3.15 5 4.41.7.3 1.24.48 1.67.62.7.22 1.34.19 1.84.12.56-.08 1.71-.7 1.96-1.37.24-.68.24-1.26.17-1.38-.07-.12-.27-.2-.56-.34z" />
+                    <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.77.46 3.45 1.34 4.94L2 22l5.29-1.39a9.9 9.9 0 004.75 1.21h.01c5.46 0 9.9-4.45 9.9-9.91 0-2.65-1.03-5.14-2.9-7.01A9.87 9.87 0 0012.04 2zm0 18.13h-.01a8.21 8.21 0 01-4.19-1.15l-.3-.18-3.14.82.84-3.06-.2-.31a8.24 8.24 0 01-1.26-4.34c0-4.55 3.71-8.26 8.27-8.26 2.21 0 4.28.86 5.84 2.42a8.2 8.2 0 012.42 5.84c0 4.56-3.71 8.26-8.27 8.26z" />
+                  </svg>
+                </a>
               </div>
             </div>
 

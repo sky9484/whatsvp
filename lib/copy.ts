@@ -99,6 +99,48 @@ export const CHECKIN = {
   organizerCodeHint: 'Have attendees scan this to check in.',
 } as const;
 
+// ── About page (v3 P5) ──────────────────────────────────────────────────────────
+export const ABOUT = {
+  title: 'How WhatsVP works',
+  intro:
+    "WhatsVP is a live map of what's happening in your city — run clubs, photography walks, food crawls, " +
+    "student societies, board games nights, founders meetups, and everything in between. No separate app " +
+    'for each community. One map, live.',
+  steps: [
+    {
+      title: 'Find something happening',
+      body: 'The map shows events near you — live right now (coral), upcoming (teal), or in the past 10 days. Filter by time or search by name.',
+    },
+    {
+      title: 'RSVP, then check in',
+      body: "RSVP if you're planning to go. When you actually show up, check in — scan the organizer's code or just tap Check in with your location. That's what fills your Passport.",
+    },
+    {
+      title: 'Collect stamps',
+      body: 'Every check-in adds a stamp to your Passport — a simple, honest record of the communities you actually showed up for, not just the ones you clicked "interested" on.',
+    },
+    {
+      title: 'Join a guild',
+      body: "A guild is a community's home base on WhatsVP — its own page, roster, and events. Join the ones you're part of to see their events and channels.",
+    },
+    {
+      title: 'Chat three ways',
+      body: 'Guild channels for ongoing conversation, a live room for each event (open the day before, archived after), and DMs with people you both agreed to connect with.',
+    },
+  ],
+  faq: [
+    { q: 'Do I need an account to see the map?', a: 'No. The map is open to everyone. Logging in unlocks RSVPs, check-ins, chat, and organizing events.' },
+    { q: 'Is it free?', a: 'Yes. Your Passport and every stamp are free — nothing to buy, nothing to set up.' },
+    { q: "What's a Passport?", a: "Your identity on WhatsVP — created automatically the first time you log in. It's yours, and it holds every stamp you collect." },
+    { q: "What's a Stamp?", a: 'Proof you actually attended an event, added the moment you check in. Unlike an RSVP, it can\'t be faked from your couch.' },
+    {
+      q: 'Does WhatsVP track my location?',
+      a: "Only when you tap Check in, and only to confirm you're near the venue — we never store your exact coordinates, and we never track you in the background.",
+    },
+    { q: 'Can I organize an event?', a: "Yes — paste a Luma link for any physical event and we'll add it to the map with a pin and, automatically, its own event room." },
+  ],
+} as const;
+
 // ── Settings → External collectible avatar (opt-in, advanced) ──────────────────
 export const SETTINGS_EXTERNAL_AVATAR = {
   title: 'External collectible avatar',

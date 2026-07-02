@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { TAGLINE } from '@/lib/copy';
@@ -16,7 +17,7 @@ export default function Header({ onGuilds, onOrganize, onChat, onOpenSettings }:
   const { theme, toggle } = useTheme();
 
   const initial =
-    profile?.display_name?.trim()?.[0]?.toUpperCase() ?? 'B';
+    profile?.display_name?.trim()?.[0]?.toUpperCase() ?? '?';
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-paper/90 backdrop-blur-md border-b border-hairline flex items-center justify-between px-4 sm:px-6">
@@ -30,14 +31,9 @@ export default function Header({ onGuilds, onOrganize, onChat, onOpenSettings }:
 
       {/* Centre nav — desktop only; mobile uses the bottom TabBar instead */}
       <nav className="hidden md:flex flex-1 justify-center gap-7 text-sm">
-        <button
-          className="text-ink/60 hover:text-ink active:scale-95 transition-all"
-          onClick={() =>
-            window.open('https://github.com/sky9484/whatsvp', '_blank', 'noopener')
-          }
-        >
+        <Link href="/about" className="text-ink/60 hover:text-ink active:scale-95 transition-all">
           how
-        </button>
+        </Link>
         <button
           className="text-ink/60 hover:text-ink active:scale-95 transition-all"
           onClick={onGuilds}

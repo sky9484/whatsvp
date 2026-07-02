@@ -67,6 +67,11 @@ export function isCheckinWindowOpen(event: Pick<RawEvent, 'starts_at' | 'ends_at
   return now >= start - CHECKIN_WINDOW_PAD_MS && now <= end + CHECKIN_WINDOW_PAD_MS;
 }
 
+/** wa.me share link — works everywhere (opens the app on mobile, web.whatsapp.com on desktop). */
+export function whatsAppShareUrl(text: string, url: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`;
+}
+
 /** Haversine distance in metres */
 export function distanceMetres(
   lat1: number, lng1: number,

@@ -2,10 +2,11 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 import Header from './Header';
 import TabBar from './TabBar';
+import HeroOverlay from './HeroOverlay';
 import SearchBar from './SearchBar';
 import TimeScrubber from './TimeScrubber';
 import EventPopup from './EventPopup';
@@ -138,6 +139,23 @@ export default function MapContainer() {
     setSelectedEvent(event);
   }, []);
 
+  // Honor ?event=<id> from a share-page "Open in WhatsVP" link — selects the
+  // event once it's loaded, then cleans the URL. One-shot via a ref so it
+  // doesn't re-fire on later event-list refreshes.
+  const pendingEventId = useRef<string | null>(null);
+  useEffect(() => {
+    pendingEventId.current = new URLSearchParams(window.location.search).get('event');
+  }, []);
+  useEffect(() => {
+    if (!pendingEventId.current || allEvents.length === 0) return;
+    const match = allEvents.find((e) => e.id === pendingEventId.current);
+    if (match) {
+      handleEventSelect(match);
+      window.history.replaceState(null, '', '/');
+    }
+    pendingEventId.current = null;
+  }, [allEvents, handleEventSelect]);
+
   const handleEventAdded = useCallback(
     (event: RawEvent & { status: ReturnType<typeof getEventStatus> }) => {
       setAllEvents((prev) => {
@@ -247,6 +265,9 @@ export default function MapContainer() {
       >
         +
       </button>
+
+      {/* Logged-out landing overlay — the map behind it IS the product */}
+      {!address && <HeroOverlay liveCount={timeCounts.live} weekCount={timeCounts.week} />}
 
       {/* Active guild filter chip */}
       {guildFilter && (

@@ -50,7 +50,7 @@ Repositioning: **"The live map of the KL builder scene"** → **"Your city's com
 | **2** | Map 2.0 — bottom sheet + carousel, time scrubber | ✅ Built (presence via check-ins deferred to P3) |
 | **3** | Core loop — check-in (QR/geofence) → Stamp (new Move module) → Passport, organizer analytics | ✅ Built |
 | **4** | Chat 2.0 — guild channels, ephemeral event rooms + photo drops, DMs + mutuals, PWA/push | ✅ Built |
-| 5 | Landing & growth — logged-out map hero, SSR `/e/[slug]` `/g/[slug]`, OG images, WhatsApp share | ⏳ |
+| **5** | Landing & growth — logged-out map hero, SSR `/e/[slug]` `/g/[slug]`, OG images, WhatsApp share | ✅ Built |
 
 **P1 — the auntie test.** `BuilderId` renamed to **Passport** everywhere (Move module [passport.move](move/whatsvp/sources/passport.move), types, routes, UI — nothing was on-chain yet, so this was free). [lib/copy.ts](lib/copy.ts) is now the canonical, grep-able registry of user-facing vocabulary — forbidden words (NFT, wallet, mint, on-chain, blockchain, crypto, Web3, token, gas, Sui, address) are audited out of every component/route except `Settings → Advanced`, which is the one place chain details may appear. [lib/demoEvents.ts](lib/demoEvents.ts) + [seed.sql](supabase/seed.sql) now seed **7 guilds across 8 community types** (run club, photography, badminton, food, student society, board games, founders, Web3) — a Web3 meetup is one community among many, not the default.
 
@@ -79,6 +79,15 @@ Repositioning: **"The live map of the KL builder scene"** → **"Your city's com
 - **PWA**: [public/manifest.json](public/manifest.json) + [public/sw.js](public/sw.js) (installable; push + notification-click only — **no offline asset/data caching**, since a live map showing stale cached "live" pins would be actively dishonest) + a Notifications toggle in Settings ([lib/pwa.ts](lib/pwa.ts)) using VAPID web-push. `/api/cron/event-reminders` pushes "starting soon" ~10-20 min before an RSVP'd event; DM sends fire a best-effort push via `/api/push/notify`. **@mention push was not built** — it needs @-handle parsing + resolution to a profile, a distinct feature; only DM push shipped.
 
 > **To activate push:** run `npx web-push generate-vapid-keys` and set `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`. Without them the Notifications toggle shows "Soon" and everything else works normally. The PWA install icon is currently SVG-only ([public/icon.svg](public/icon.svg)) — this installs fine on Chrome/Edge/Android; Safari/iOS historically wants a real PNG `apple-touch-icon` for full home-screen fidelity, not yet added.
+
+**P5 — Landing & growth.** No separate marketing site: the logged-out `/` route already shows the real, live map — [HeroOverlay.tsx](components/HeroOverlay.tsx) adds a one-time, dismissible intro card over it (tagline + live counts + "Explore the map" / "How it works") that never reappears once you log in or dismiss it (localStorage), and unmounts entirely once you have an account.
+
+- **SSR share pages**, fast and crawlable without executing JS: [/e/[slug]](app/e/%5Bslug%5D/page.tsx) (an event; "slug" is the event's id — events don't have pretty slugs yet) and [/g/[slug]](app/g/%5Bslug%5D/page.tsx) (a guild — this is the URL the "create guild" form already previewed as `whatsvp.com/g/…` since v2, now real). Each has a matching `opengraph-image.tsx` generating a real PNG via `next/og`'s `ImageResponse` (no `@vercel/og` package needed — it's built into Next.js since 13.3), with a generic fallback card when Supabase isn't configured rather than a broken image.
+- **"Open in WhatsVP"** on the event share page deep-links to `/?event=<id>` — [MapContainer.tsx](components/MapContainer.tsx) picks up a one-shot `?event=` param once events have loaded, selects it, and cleans the URL (the same pattern as the `?open=guilds|chat` param from P3).
+- **WhatsApp share** ([lib/utils.ts](lib/utils.ts) `whatsAppShareUrl`) — `wa.me` links pointing at the new share pages, added next to the existing share button in the event detail view, the guild page, and the share pages themselves.
+- **[/about](app/about/page.tsx)**: how-it-works steps + FAQ, written to describe only what's actually built — an earlier draft claimed you could "create an event under a guild," which isn't a real feature (organizing is Luma-URL-only); caught and corrected before shipping rather than leaving copy that oversells the product.
+- Header's "how" nav item now links to `/about` instead of the GitHub repo — the old link was developer-facing, not visitor-facing.
+- `lib/copy.ts` gained an `ABOUT` vocabulary group for this phase's strings, continuing the "centralize for future localization" pattern from P1.
 
 ---
 
@@ -126,12 +135,18 @@ Fill in the keys. **Minimum to see the map running:** none — it falls back to 
 
 ### 3. Database
 
-Create a Supabase project, then run the migration and (optionally) seed data:
+Create a Supabase project, then run the migrations **in order** and (optionally) seed data:
 
 ```bash
-# Using the Supabase SQL editor: paste each file's contents and run.
-#   supabase/migrations/001_initial.sql   ← schema + RLS + Realtime
-#   supabase/seed.sql                       ← optional KL demo pins
+# Using the Supabase SQL editor: paste each file's contents and run, in order.
+#   supabase/migrations/001_initial.sql        ← schema + RLS + Realtime
+#   supabase/migrations/002_auth.sql           ← re-point RLS at sui_address
+#   supabase/migrations/003_buildings.sql      ← building fields + Storage bucket
+#   supabase/migrations/004_guilds.sql         ← guilds + guild_members
+#   supabase/migrations/005_external_pfp.sql   ← external-collection PFP columns
+#   supabase/migrations/006_checkins.sql       ← check-in -> Stamp -> Passport
+#   supabase/migrations/007_chat2.sql          ← event rooms, DMs, reactions, push
+#   supabase/seed.sql                            ← optional KL demo pins
 
 # Or with the Supabase CLI:
 supabase db push
@@ -233,6 +248,9 @@ app/
   passport/page.tsx       your collected Stamps + milestone progress (v3 P3)
   checkin/[event_id]/page.tsx  QR-scan landing page — auto check-in once signed in (v3 P3)
   guilds/[slug]/events/[id]/manage/page.tsx  organizer attendance analytics (v3 P3)
+  about/page.tsx          how-it-works + FAQ (v3 P5)
+  e/[slug]/page.tsx + opengraph-image.tsx   public SSR event share page + OG image (v3 P5)
+  g/[slug]/page.tsx + opengraph-image.tsx   public SSR guild share page + OG image (v3 P5)
   api/
     ingest-luma/route.ts    cron: curated calendar → events
     organize/route.ts       paste a Luma URL → event (tags host from session)
@@ -281,6 +299,7 @@ components/
   CheckinQR.tsx            organizer's self-refreshing rotating check-in QR (v3 P3)
   AddFriendButton.tsx      "+ friend" affordance used in rosters/attendee lists (v3 P4)
   ServiceWorkerRegister.tsx  registers public/sw.js on mount, silent (v3 P4)
+  HeroOverlay.tsx          one-time dismissible logged-out landing card (v3 P5)
 lib/
   types.ts                shared types
   utils.ts                status derivation, formatting, haversine, filtering, time-segment matching, check-in window

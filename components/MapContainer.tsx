@@ -8,7 +8,7 @@ import Header from './Header';
 import TabBar from './TabBar';
 import HeroOverlay from './HeroOverlay';
 import SearchBar from './SearchBar';
-import TimeScrubber from './TimeScrubber';
+import StatusFilter from './StatusFilter';
 import EventPopup from './EventPopup';
 import EventSheet from './EventSheet';
 import OrganizeDrawer from './OrganizeDrawer';
@@ -40,7 +40,7 @@ type DrawerKey = 'organize' | 'settings' | 'chat' | 'guilds' | null;
 
 export default function MapContainer() {
   const [allEvents, setAllEvents] = useState<Event[]>([]);
-  const [filter, setFilter] = useState<EventFilter>('week');
+  const [filter, setFilter] = useState<EventFilter>('upcoming');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   // Single source of truth for which drawer is open — at most one at a time.
@@ -267,7 +267,7 @@ export default function MapContainer() {
       </button>
 
       {/* Logged-out landing overlay — the map behind it IS the product */}
-      {!address && <HeroOverlay liveCount={timeCounts.live} weekCount={timeCounts.week} />}
+      {!address && <HeroOverlay liveCount={timeCounts.live} weekCount={timeCounts.upcoming} />}
 
       {/* Active guild filter chip */}
       {guildFilter && (
@@ -286,21 +286,22 @@ export default function MapContainer() {
         </div>
       )}
 
-      {/* Search + time scrubber card */}
-      <div className="absolute top-[72px] left-1/2 -translate-x-1/2 z-30 w-full max-w-md px-3 pointer-events-none">
-        <div className="bg-paper/95 backdrop-blur-md rounded-2xl shadow-lg border border-hairline p-3 pointer-events-auto space-y-2">
+      {/* Search + status filter card — anchored to the bottom on mobile (above the
+          EventSheet peek carousel + tab bar) and desktop alike, per the reposition. */}
+      <div className="absolute bottom-[144px] md:bottom-6 left-1/2 -translate-x-1/2 z-30 w-full max-w-md px-3 pointer-events-none">
+        <div className="bg-paper/95 backdrop-blur-md rounded-2xl shadow-lg border border-hairline p-3 space-y-2 pointer-events-auto">
           <SearchBar
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             onNearMe={() => setGeolocateTrigger((n) => n + 1)}
           />
-          <TimeScrubber active={filter} onChange={setFilter} counts={timeCounts} />
+          <StatusFilter active={filter} onChange={setFilter} counts={timeCounts} />
         </div>
       </div>
 
-      {/* Live-presence indicator — sits above the mobile tab bar */}
+      {/* Live-presence indicator — stacks above the search/filter card */}
       {liveCount > 0 && (
-        <div className="absolute bottom-20 md:bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+        <div className="absolute bottom-[254px] md:bottom-[104px] left-1/2 -translate-x-1/2 z-20 pointer-events-none">
           <span className="inline-flex items-center gap-2 bg-paper/90 backdrop-blur-md rounded-full pl-2.5 pr-3.5 py-1.5 border border-hairline shadow-lg">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full rounded-full bg-live opacity-70 animate-ping" />
@@ -313,9 +314,9 @@ export default function MapContainer() {
         </div>
       )}
 
-      {/* Demo-data badge (shown until Supabase is configured) — sits above the mobile tab bar */}
+      {/* Demo-data badge (shown until Supabase is configured) — top-left, clear of the bottom stack */}
       {demoMode && (
-        <div className="absolute bottom-20 md:bottom-4 left-4 z-20 pointer-events-none">
+        <div className="absolute top-[72px] left-4 z-20 pointer-events-none">
           <span className="inline-flex items-center gap-1.5 bg-paper/90 backdrop-blur-md rounded-full px-3 py-1 border border-hairline text-[11px] font-medium text-ink/55 shadow">
             <span className="w-1.5 h-1.5 rounded-full bg-upcoming" />
             Demo data · connect Supabase for live events
@@ -323,18 +324,16 @@ export default function MapContainer() {
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Empty state — stacks above the search/filter card */}
       {!loading && visibleEvents.length === 0 && (
-        <div className="absolute bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+        <div className="absolute bottom-[254px] md:bottom-[104px] left-1/2 -translate-x-1/2 z-20 pointer-events-none">
           <div className="bg-paper/90 backdrop-blur-md rounded-xl px-5 py-3 border border-hairline text-sm text-ink/60 text-center shadow">
             {searchQuery
               ? `No events matching "${searchQuery}"`
               : {
+                  past: 'No past events yet',
                   live: 'No live events right now',
-                  today: 'Nothing on today — see this week',
-                  tomorrow: 'Nothing tomorrow yet',
-                  week: 'No events this week — check back soon',
-                  past10: 'No events in the past 10 days',
+                  upcoming: 'No upcoming events — check back soon',
                 }[filter]}
           </div>
         </div>

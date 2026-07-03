@@ -206,10 +206,36 @@ body {
   margin-top: 4px;
   margin-bottom: 2px;
   animation: iso-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  perspective: 900px;
 }
 @keyframes iso-rise {
   from { transform: translateY(10px) scale(0.92); opacity: 0; }
   to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* Nested so each transform composes independently instead of fighting over
+   one `transform` property: iso-art handles the one-shot entrance, iso-spin
+   the continuous 360 turn, iso-float the gentle bob — "floating, slowly
+   spinning" per the building-reveal brief. */
+.iso-spin {
+  animation: iso-spin-turn 26s linear infinite;
+  transform-style: preserve-3d;
+}
+@keyframes iso-spin-turn {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(360deg); }
+}
+
+.iso-float {
+  animation: iso-float-bob 4.5s ease-in-out infinite;
+}
+@keyframes iso-float-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iso-spin, .iso-float { animation: none; }
 }
 
 .iso-meta {

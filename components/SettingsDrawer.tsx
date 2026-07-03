@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useSuiClient } from '@mysten/dapp-kit';
+import { useSuiClient, useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 import { useAuth } from '@/lib/auth';
-import { shortenAddress, formatSui, SUI_NETWORK } from '@/lib/sui';
+import { shortenAddress, formatSui, buildSendSuiTx, isValidSuiAddress, SUI_NETWORK } from '@/lib/sui';
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush, type PushState } from '@/lib/pwa';
 
 // viem (EVM wallet + chain defs) is only needed by this opt-in, power-user
@@ -20,10 +20,16 @@ interface SettingsDrawerProps {
 export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps) {
   const { address, profile, logout, token } = useAuth();
   const suiClient = useSuiClient();
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
 
   const [balance, setBalance] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showTopUp, setShowTopUp] = useState(false);
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const [withdrawAddress, setWithdrawAddress] = useState('');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawBusy, setWithdrawBusy] = useState(false);
+  const [withdrawError, setWithdrawError] = useState('');
   const [pushState, setPushState] = useState<PushState | null>(null);
   const [pushBusy, setPushBusy] = useState(false);
   const [identity, setIdentity] = useState<{
@@ -67,6 +73,47 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
       cancelled = true;
     };
   }, [isOpen, address, suiClient]);
+
+  const refreshBalance = () => {
+    if (!address) return;
+    suiClient.getBalance({ owner: address }).then((res) => setBalance(formatSui(res.totalBalance)));
+  };
+
+  const GAS_BUFFER_SUI = 0.02;
+  const setMaxWithdraw = () => {
+    if (!balance) return;
+    setWithdrawAmount(Math.max(0, parseFloat(balance) - GAS_BUFFER_SUI).toFixed(4));
+  };
+
+  const submitWithdraw = () => {
+    setWithdrawError('');
+    if (!isValidSuiAddress(withdrawAddress)) {
+      setWithdrawError("That doesn't look like a valid Sui address.");
+      return;
+    }
+    const amountNum = Number(withdrawAmount);
+    if (!amountNum || amountNum <= 0) {
+      setWithdrawError('Enter an amount greater than 0.');
+      return;
+    }
+    setWithdrawBusy(true);
+    signAndExecute(
+      { transaction: buildSendSuiTx(withdrawAddress, withdrawAmount) },
+      {
+        onSuccess: () => {
+          setWithdrawBusy(false);
+          setShowWithdraw(false);
+          setWithdrawAddress('');
+          setWithdrawAmount('');
+          refreshBalance();
+        },
+        onError: (e) => {
+          setWithdrawBusy(false);
+          setWithdrawError(e.message || 'Transaction failed — try again.');
+        },
+      }
+    );
+  };
 
   // Read push subscription state when the drawer opens
   useEffect(() => {
@@ -165,12 +212,12 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
                 />
               ) : (
                 <span className="w-12 h-12 rounded-full bg-teal text-paper text-lg font-semibold flex items-center justify-center">
-                  {profile?.display_name?.[0]?.toUpperCase() ?? 'B'}
+                  {profile?.display_name?.[0]?.toUpperCase() ?? '?'}
                 </span>
               )}
               <div className="min-w-0">
                 <p className="font-medium text-ink truncate">
-                  {profile?.display_name ?? 'Builder'}
+                  {profile?.display_name ?? 'Signing in…'}
                 </p>
                 <p className="text-xs text-ink/50">WhatsVP account</p>
               </div>
@@ -209,6 +256,68 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
                     `${balance} SUI`
                   )}
                 </span>
+              </div>
+
+              {/* Withdraw — a real on-chain transfer to any wallet you control
+                  (Slush, Phantom, ...). Not a key export: your account isn't
+                  secured by a private key you could hand over — this is the
+                  correct way to move value out. */}
+              <div className="mt-3 pt-3 border-t border-hairline">
+                {!showWithdraw ? (
+                  <button
+                    onClick={() => setShowWithdraw(true)}
+                    disabled={!balance || balance === '0' || balance === '—'}
+                    className="w-full py-2 rounded-lg border border-hairline text-sm text-ink hover:bg-ink/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Withdraw to another wallet
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      value={withdrawAddress}
+                      onChange={(e) => setWithdrawAddress(e.target.value.trim())}
+                      placeholder="Recipient Sui address (0x…)"
+                      className="w-full px-3 py-2 rounded-lg border border-hairline bg-paper text-sm font-mono focus:outline-none focus:ring-2 focus:ring-teal/30"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        value={withdrawAmount}
+                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                        placeholder="Amount"
+                        inputMode="decimal"
+                        className="flex-1 px-3 py-2 rounded-lg border border-hairline bg-paper text-sm focus:outline-none focus:ring-2 focus:ring-teal/30"
+                      />
+                      <button
+                        onClick={setMaxWithdraw}
+                        className="px-3 py-2 rounded-lg border border-hairline text-xs font-medium text-ink hover:bg-ink/5"
+                      >
+                        Max
+                      </button>
+                    </div>
+                    {withdrawError && <p className="text-xs text-live">{withdrawError}</p>}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setShowWithdraw(false);
+                          setWithdrawError('');
+                        }}
+                        className="flex-1 py-2 rounded-lg border border-hairline text-sm text-ink hover:bg-ink/5"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={submitWithdraw}
+                        disabled={withdrawBusy || !withdrawAddress || !withdrawAmount}
+                        className="flex-1 py-2 rounded-lg bg-teal text-white text-sm font-semibold disabled:opacity-50"
+                      >
+                        {withdrawBusy ? 'Sending…' : 'Send'}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-ink/40 text-center">
+                      This sends real funds on {SUI_NETWORK}. Double-check the address — it can&apos;t be undone.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 

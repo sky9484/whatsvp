@@ -14,7 +14,7 @@ The map is the product. Every flow passes **the auntie test**: a non-technical c
 | **1** | Luma ingestion (cron) + organize (paste a Luma URL) | ✅ Built |
 | **2** | Identity — Enoki zkLogin (Google → Sui address), Settings drawer, gating | ✅ Built |
 | **3** | Directions + transit — nearest station + next-departure from GTFS | ✅ Built |
-| **4** | Real 3D buildings — fill-extrusion + flyTo/tilt + **isometric typography** on click | ✅ Built (needs MapTiler key for extrusion) |
+| **4** | Building reveal — flyTo/tilt + **isometric typography** + spinning iso card on click | ✅ Built |
 | **5** | Chat — Supabase Realtime groups + topics + messages | ✅ Built |
 | **6** | Top-up (USDC on Sui via Enoki — interface only) | ✅ Built (interface only) |
 | + | **RSVP**, share, add-to-calendar, premium event card | ✅ Built |
@@ -89,6 +89,13 @@ Repositioning: **"The live map of the KL builder scene"** → **"Your city's com
 - Header's "how" nav item now links to `/about` instead of the GitHub repo — the old link was developer-facing, not visitor-facing.
 - `lib/copy.ts` gained an `ABOUT` vocabulary group for this phase's strings, continuing the "centralize for future localization" pattern from P1.
 
+**Post-P5 refinements — map filter, building reveal, real wallet withdrawal.**
+
+- **Status filter simplified to 3 segments.** `EventFilter` is now `'past' | 'live' | 'upcoming'` (was 5: live/today/tomorrow/week/past10) — it mirrors `EventStatus` exactly, so `lib/utils.ts`'s filtering collapsed to a direct `event.status === filter` comparison (the old KL-timezone-day-bucketing logic for "today"/"tomorrow" is gone, no longer needed). [TimeScrubber.tsx](components/TimeScrubber.tsx) was replaced by [StatusFilter.tsx](components/StatusFilter.tsx) — three buttons, not a scrollable scrubber, since there's nothing left to scrub. The search + filter card moved from the top of the map to the bottom on both mobile and desktop — on mobile it now stacks directly above the EventSheet's peek carousel (with the live-indicator/empty-state stacked above *that*), verified via `getBoundingClientRect()` to have clean gaps and zero overlap with the carousel or tab bar.
+- **Ambient city-wide building extrusion removed.** `add3DBuildings` (the fill-extrusion layer that shaded every OSM building in view, regardless of whether it hosted an event) is gone — non-event buildings now render as the basemap's normal flat footprints, which is cheaper to render and was rendering detail nobody was reading. The per-event "View building in 3D" reveal (the hand-authored `IsoBuilding`/`IsoPhotoBuilding` overlay) is untouched by this and remains the only "special" building treatment — it was always scoped to buildings with an event, so removing the ambient layer doesn't take anything away from that flow.
+- **Building reveal is closer and animated.** The reveal camera now flies to `zoom: 18.6` (was 17.5) for a tighter, more street-level framing — `maxPitch`/target pitch deliberately stayed at 70, since MapLibre's own docs flag pitch beyond 60° as "experimental and may result in rendering issues"; the closer zoom carries the "street view" feel instead of pushing pitch into that zone. The iso card itself now floats and slowly spins ([app/globals.css](app/globals.css) `.iso-spin`/`.iso-float`, nested so the entrance animation, the continuous rotation, and the gentle bob each animate their own element instead of fighting over one `transform`) — `perspective` is set on the parent so the `rotateY` spin reads as a card turning in 3D space, not squashing flat. Respects `prefers-reduced-motion`. **Not built yet, deliberately:** true 4-sided rotation showing a building's actual back/left/right faces — that needs real photos from those angles, which no upload flow collects today. The natural next step is a front/back/left/right multi-photo upload (with the building's name + address) feeding a real textured cuboid instead of a single spinning card; flagged for later rather than faked with a repeated single image pretending to be four sides.
+- **Wallet: withdraw, not export.** zkLogin addresses have no exportable private key — signing authority comes from a fresh ephemeral key plus a ZK proof of the Google login, re-proven each session, not a stored key. So "type a password to get your private key" isn't something that can be built as asked; the correct equivalent is a real on-chain transfer. [lib/sui.ts](lib/sui.ts) gained `buildSendSuiTx`/`buildTransferObjectTx`, and Settings' "Your account · Advanced" card gained a **Withdraw to another wallet** flow — paste any Sui address (Slush, Phantom, ...; MetaMask doesn't support Sui at all, a different curve/address format) and an amount, `useSignAndExecuteTransaction` sends it. "Max" reserves a small gas buffer rather than emptying the coin used to pay for its own transaction. Passport and Stamps are soulbound by design and can never be included — only SUI balance (and, via `buildTransferObjectTx`, individual transferable Avatars) can move. No new password/2FA/custody infrastructure — this works within zkLogin's actual security model rather than beside it.
+
 ---
 
 ## Tech stack
@@ -121,7 +128,7 @@ Fill in the keys. **Minimum to see the map running:** none — it falls back to 
 
 | Variable | Where to get it | Required for |
 |---|---|---|
-| `NEXT_PUBLIC_MAPTILER_KEY` | [cloud.maptiler.com](https://cloud.maptiler.com) → Keys (free tier). Add a domain restriction. | Styled basemap + Phase 4 3D buildings |
+| `NEXT_PUBLIC_MAPTILER_KEY` | [cloud.maptiler.com](https://cloud.maptiler.com) → Keys (free tier). Add a domain restriction. | Styled vector basemap (CARTO raster fallback without it) |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API | Reading/writing events |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API | Client reads (RLS-protected) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API (**secret**) | Cron ingestion + organize writes |
@@ -168,7 +175,7 @@ Open <http://localhost:3000>. With the seed data loaded you'll see live (coral) 
 ```
 Browser (Next.js / React)
   ├─ MapLibre map  ── reads events from Supabase (anon client, RLS-protected)
-  ├─ SearchBar + TimeScrubber ── search + near-me + live/today/tomorrow/week/past10
+  ├─ SearchBar + StatusFilter ── search + near-me + past/live/upcoming
   ├─ EventPopup (desktop) / EventSheet (mobile) ── event detail, sharing lib/useEventDetail.ts
   └─ OrganizeDrawer ── POSTs a Luma URL to /api/organize
 
@@ -208,13 +215,15 @@ The directions buttons in the event popup are deep links (Google Maps transit + 
 
 > **Key finding (verified against the live feed):** `rapid-rail-kl` has **no GTFS-Realtime feed** — both the vehicle-position and trip-updates endpoints `404` for this category. So departures are schedule-derived and `realtime: false`, exactly the fallback the brief anticipated. `computeNextDeparture` is structured so a realtime overlay can be added later without changing the API contract. The algorithm is pure and was validated end-to-end against real KL coordinates (KLCC→KJL, Bukit Bintang→MRT Kajang, interchanges, out-of-range).
 
-### 3D buildings (Phase 4)
+### Building reveal (Phase 4)
 
-[Map.tsx](components/Map.tsx) adds a `fill-extrusion` layer (`add3DBuildings`) that renders OSM building footprints in 3D using the OpenMapTiles `render_height` / `render_min_height` properties, inserted below the label layers and growing in from zoom 14→16. Clicking **"View building"** in the popup calls `flyTo` with `pitch: 60` + a slight bearing so the venue's actual building extrudes in isometric; closing the popup eases the camera back to flat.
-
-> **Requires a MapTiler key.** 3D needs **vector** tiles — the keyless CARTO Positron fallback is raster and can't extrude, so `add3DBuildings` detects the absence of a `building` source-layer and no-ops (the map still works, just flat). This matches the brief: *"MapTiler vector required for 3D buildings."* Set `NEXT_PUBLIC_MAPTILER_KEY` to see it. The layer-detection + flyTo code is verified to initialise without client errors on the raster fallback; the extrusion itself is only visible with the key.
+Every building on the map renders as the basemap's normal flat footprint — there's no ambient city-wide 3D extrusion (a `fill-extrusion` layer shading every OSM building in view regardless of relevance was built, then deliberately removed post-P5: it cost render performance for detail nobody was reading, since it applied to buildings whether or not they hosted an event). The only "special" building treatment is per-event and explicit: clicking **"View building in 3D"** calls `flyTo` with a close zoom (18.6) and a steep pitch (70, MapLibre's documented-safe ceiling — its own docs flag pitch beyond 60° as "experimental and may result in rendering issues") for a street-level establishing shot, then raises the isometric overlay described below.
 
 **Isometric typography.** Clicking "View building in 3D" also raises a bold **isometric 3D typographic label** over the venue — block letters with a paper face, ink outline and a brand-color (live coral / upcoming teal) extrusion, anchored to the building and tracking the camera as it flies in (HTML overlay in [Map.tsx](components/Map.tsx), styled in [globals.css](app/globals.css) `.iso-stage`). This renders without a MapTiler key (it's HTML/CSS over the map), so it works on the free basemap too.
+
+**Floating + spinning building card.** The iso art itself (`IsoBuilding` or `IsoPhotoBuilding`) floats and slowly turns — `.iso-spin`/`.iso-float` in globals.css, nested inside `.iso-art` so the one-shot entrance, the continuous rotation, and the gentle bob each animate their own element rather than fighting over one `transform`. A `perspective` on the parent makes the `rotateY` read as a card turning in 3D space. This is an honest "floating showcase" effect on a flat image — it does not reveal new building faces, since none of the current art (hand-authored isometric SVGs, or a single community-uploaded photo) has more than one angle to show. Respects `prefers-reduced-motion`.
+
+> **Future: real 4-sided buildings.** The natural next step — not yet built — is a front/back/left/right photo upload (plus the building's name and address) feeding a real textured cuboid that genuinely shows different faces as it turns, with the contributor earning a star on their avatar and a title for supplying it. Flagged here rather than faked with one image repeated on four sides.
 
 **Isometric building art.** [IsoBuilding.tsx](components/IsoBuilding.tsx) renders buildings as true 30° isometric SVG (boxes projected + painter-sorted, three shaded faces). Three **landmarks are hand-authored** from their real massing: **KLCC** (twin tapered towers, 5 setbacks, spires, skybridge), **Millerz Square** (5 slim towers on a podium), **MDEC Cyberjaya** (stepped glass mid-rise — stylized, as its architecture isn't documented). A venue resolves to a landmark by `building_key` or proximity ([lib/buildings.ts](lib/buildings.ts)); the three are in [seed.sql](supabase/seed.sql).
 
@@ -281,19 +290,19 @@ components/
     DirectMessages.tsx      tier 3 — friend requests + DMs + disappearing mode (v3 P4)
   Providers.tsx           theme + react-query + SuiClientProvider + Enoki + toast + auth
   MapContainer.tsx        client orchestrator (state, data fetch, gating, guild filter)
-  Map.tsx                 MapLibre: theme-aware style, clustering, 3D buildings, iso overlay
+  Map.tsx                 MapLibre: theme-aware style, clustering, iso building-reveal overlay
   IsoBuilding.tsx         isometric SVG landmark renderer + photo-card renderer
   Header.tsx              slim top bar: wordmark + tagline (lg+) + desktop nav + theme toggle + user chip
   TabBar.tsx              bottom tab bar (Map/Guilds/Chat/Passport) — mobile only
   SearchBar.tsx           search + near-me (desktop + mobile)
-  TimeScrubber.tsx        5-segment time filter: live/today/tomorrow/week/past10
+  StatusFilter.tsx        3-button status filter: past/live/upcoming
   EventPopup.tsx           desktop event detail card (floating, md:block)
   EventSheet.tsx           mobile draggable bottom sheet: peek carousel → half → full (md:hidden)
   EventDetailContent.tsx  shared detail body (time/venue/transit/RSVP/share/building) — used by both
   OrganizeDrawer.tsx       paste-a-Luma-link form (gated)
   ChatDrawer.tsx           groups → topics → Supabase Realtime messages
   GuildsDrawer.tsx         guild directory + guild home (roster/events/join) + create
-  SettingsDrawer.tsx       account + balance (Advanced) + Passport + cosmetics + external avatar + top-up
+  SettingsDrawer.tsx       account + balance + withdraw (Advanced) + Passport + cosmetics + external avatar + top-up
   ExternalPfpLinker.tsx    opt-in external wallet link + ownership verify (lazy-loaded)
   PassportMinter.tsx       silent, gasless Passport auto-mint on first login
   CheckinQR.tsx            organizer's self-refreshing rotating check-in QR (v3 P3)
@@ -312,7 +321,7 @@ lib/
   pwa.ts                  client push subscribe/unsubscribe helpers (v3 P4)
   luma.ts                 Luma API + HTML parsing (server-only usage)
   gtfs.ts                 GTFS-Static parse + frequency-based next-departure (server-only)
-  sui.ts / sui-server.ts  network config, formatting / server-only Sui RPC client
+  sui.ts / sui-server.ts  network config, formatting, withdraw tx builders / server-only Sui RPC client
   sui-move.ts             Move package tx builders, gated on isMoveConfigured()
   jwt.ts                  HS256 Supabase JWT sign/verify (server-only, no deps)
   authMessage.ts          Sui login-message build/parse (signature-proof login)

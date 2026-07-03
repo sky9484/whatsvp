@@ -8,7 +8,7 @@ interface SearchBarProps {
   onNearMe: () => void;
 }
 
-/** Search box + "near me" — the time-range segments live in TimeScrubber instead. */
+/** Search box + "near me" — the status filter lives in StatusFilter instead. */
 export default function SearchBar({ searchQuery, onSearchChange, onNearMe }: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 

@@ -8,7 +8,6 @@ import IsoBuilding, { IsoPhotoBuilding, type BuildingKey } from './IsoBuilding';
 
 const KL_CENTER: [number, number] = [101.6953, 3.1478];
 const KL_ZOOM = 13;
-const BUILDINGS_LAYER_ID = 'whatsvp-3d-buildings';
 const SRC = 'events';
 
 export interface BuildingFocus {
@@ -61,36 +60,6 @@ function eventsToGeoJSON(events: Event[]): GeoJSON.FeatureCollection {
       properties: { id: e.id, status: e.status },
     })),
   };
-}
-
-/** 3D fill-extrusion buildings (vector styles only; no-ops on raster). */
-function add3DBuildings(map: maplibregl.Map) {
-  if (map.getLayer(BUILDINGS_LAYER_ID)) return;
-  const layers = map.getStyle()?.layers ?? [];
-  if (layers.some((l) => l.type === 'fill-extrusion')) return;
-  const buildingLayer = layers.find(
-    (l) => 'source-layer' in l && l['source-layer'] === 'building' && 'source' in l && l.source
-  ) as (maplibregl.LayerSpecification & { source: string }) | undefined;
-  if (!buildingLayer) return;
-  const firstSymbolId = layers.find((l) => l.type === 'symbol')?.id;
-  const height: maplibregl.ExpressionSpecification = ['coalesce', ['get', 'render_height'], ['get', 'height'], 0];
-  const base: maplibregl.ExpressionSpecification = ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0];
-  map.addLayer(
-    {
-      id: BUILDINGS_LAYER_ID,
-      type: 'fill-extrusion',
-      source: buildingLayer.source,
-      'source-layer': 'building',
-      minzoom: 14,
-      paint: {
-        'fill-extrusion-color': ['interpolate', ['linear'], height, 0, '#E4E1D8', 40, '#CFC8B8', 150, '#ADA593'],
-        'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 14, 0, 16, height],
-        'fill-extrusion-base': base,
-        'fill-extrusion-opacity': 0.9,
-      },
-    },
-    firstSymbolId
-  );
 }
 
 /** Add the clustered event source + glow/cluster/pin layers for the given theme. */
@@ -209,6 +178,9 @@ export default function Map({ events, onEventSelect, geolocateTrigger, buildingF
       zoom: KL_ZOOM,
       attributionControl: { compact: true },
       pitchWithRotate: true,
+      // MapLibre's own docs warn pitch beyond 60° is "experimental and may
+      // result in rendering issues" — stay right at the documented-safe
+      // ceiling and lean on a closer zoom for the street-view feel instead.
       maxPitch: 70,
     });
     mapRef.current = map;
@@ -233,7 +205,6 @@ export default function Map({ events, onEventSelect, geolocateTrigger, buildingF
         return;
       }
       addPinLayers(map, themeRef.current, eventsToGeoJSON(eventsRef.current));
-      add3DBuildings(map);
     };
     setupRef.current = setupLayers;
     map.on('load', setupLayers);
@@ -331,12 +302,16 @@ export default function Map({ events, onEventSelect, geolocateTrigger, buildingF
     const map = mapRef.current;
     if (!map) return;
     if (buildingFocus) {
+      // Street-view-ish: close and steeply tilted, like standing on the
+      // sidewalk looking up, rather than a top-down isometric establishing
+      // shot. Pitch stays at the documented-safe ceiling (see maxPitch above);
+      // the closer zoom does most of the work for the "street level" feel.
       map.flyTo({
         center: [buildingFocus.lng, buildingFocus.lat],
-        zoom: 17.5,
-        pitch: 60,
+        zoom: 18.6,
+        pitch: 70,
         bearing: -18,
-        duration: 1400,
+        duration: 1800,
         essential: true,
       });
       positionIso();
@@ -373,11 +348,19 @@ export default function Map({ events, onEventSelect, geolocateTrigger, buildingF
             <h3 className="iso-title">{buildingFocus.title}</h3>
             {buildingFocus.design ? (
               <div className="iso-art">
-                <IsoBuilding design={buildingFocus.design} width={210} />
+                <div className="iso-spin">
+                  <div className="iso-float">
+                    <IsoBuilding design={buildingFocus.design} width={210} />
+                  </div>
+                </div>
               </div>
             ) : buildingFocus.imageUrl ? (
               <div className="iso-art">
-                <IsoPhotoBuilding src={buildingFocus.imageUrl} width={180} />
+                <div className="iso-spin">
+                  <div className="iso-float">
+                    <IsoPhotoBuilding src={buildingFocus.imageUrl} width={180} />
+                  </div>
+                </div>
               </div>
             ) : null}
             {buildingFocus.meta && <div className="iso-meta">{buildingFocus.meta}</div>}

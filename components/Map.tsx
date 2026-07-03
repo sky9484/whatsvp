@@ -25,6 +25,10 @@ interface MapProps {
   onEventSelect: (event: Event) => void;
   geolocateTrigger?: number;
   buildingFocus?: BuildingFocus | null;
+  /** Fires on user-initiated panning only (MapLibre's 'dragstart') — not on
+   * programmatic flyTo (building reveal, event-select camera moves), which
+   * don't fire it. Used to collapse the glass search bar on pan (v4 P1). */
+  onUserPanStart?: () => void;
 }
 
 const ISO_COLORS: Record<Event['status'], { side: string; dark: string }> = {
@@ -149,7 +153,7 @@ function addPinLayers(map: maplibregl.Map, theme: 'light' | 'dark', data: GeoJSO
   }
 }
 
-export default function Map({ events, onEventSelect, geolocateTrigger, buildingFocus }: MapProps) {
+export default function Map({ events, onEventSelect, geolocateTrigger, buildingFocus, onUserPanStart }: MapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const geolocateRef = useRef<maplibregl.GeolocateControl | null>(null);
@@ -157,6 +161,8 @@ export default function Map({ events, onEventSelect, geolocateTrigger, buildingF
   const [isoVisible, setIsoVisible] = useState(false);
 
   const { theme } = useTheme();
+  const onUserPanStartRef = useRef(onUserPanStart);
+  onUserPanStartRef.current = onUserPanStart;
 
   // Refs so the persistent styledata handler always reads current values
   const themeRef = useRef(theme);
@@ -195,6 +201,11 @@ export default function Map({ events, onEventSelect, geolocateTrigger, buildingF
     geolocateRef.current = geolocate;
     map.addControl(geolocate, 'bottom-right');
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+
+    // 'dragstart' only fires for user-initiated panning, never for
+    // programmatic flyTo — the exact signal the glass search bar needs to
+    // collapse on pan without collapsing during the building-reveal camera.
+    map.on('dragstart', () => onUserPanStartRef.current?.());
 
     // Re-add layers on initial load AND after every style swap. MapLibre has no
     // 'style.load' event; the reliable "new style is ready" signal after setStyle

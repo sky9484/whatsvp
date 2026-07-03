@@ -21,6 +21,18 @@
   --upcoming: 29 158 117;    /* #1D9E75 */
   --info: 24 95 165;         /* #185FA5 */
   color-scheme: light;
+
+  /* v4 P1 — place-anchored glass + semantic aliases. Tinted paper, never
+     gray: the whole point is that glass panels read as "this app's paper",
+     not a neutral OS material. */
+  --glass-bg: rgba(247, 245, 239, 0.58);
+  --glass-brd: rgba(27, 27, 24, 0.08);
+  /* Chat bubble colours (defined now per the v4 spec; RoomView isn't
+     restyled to use them until P6's chat visual pass). */
+  --bubble-me: 15 110 86;    /* #0F6E56 — same as light --teal */
+  --ok: 29 158 117;          /* alias of --upcoming */
+  --warn: 194 132 29;        /* #C2841D */
+  --danger: 216 90 48;       /* alias of --live */
 }
 
 .dark {
@@ -34,6 +46,13 @@
   --upcoming: 55 185 140;    /* #37B98C — luminance-lifted */
   --info: 74 143 209;        /* luminance-lifted */
   color-scheme: dark;
+
+  --glass-bg: rgba(24, 24, 22, 0.55);
+  --glass-brd: rgba(242, 240, 234, 0.10);
+  --bubble-me: 18 133 106;   /* #12856A — muted for dark bg */
+  --ok: 55 185 140;
+  --warn: 224 168 74;        /* #E0A84A */
+  --danger: 232 113 74;
 }
 
 :root,
@@ -47,6 +66,10 @@
   --color-upcoming: rgb(var(--upcoming));
   --color-info: rgb(var(--info));
   --color-hairline: rgb(var(--hairline));
+  --color-bubble-me: rgb(var(--bubble-me));
+  --color-ok: rgb(var(--ok));
+  --color-warn: rgb(var(--warn));
+  --color-danger: rgb(var(--danger));
 }
 
 html,
@@ -288,4 +311,46 @@ body {
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none;              /* Chrome/Safari */
+}
+
+/* ── Glass system (v4 P1) ────────────────────────────────────────────────────
+   Place-anchored glass: tinted paper/teal, never neutral gray. Perf guards
+   per the brief — `contain: paint` so the blur doesn't force repaints of
+   surrounding content, a cheaper blur below `md`, and a solid fallback for
+   browsers without backdrop-filter. Never animate an element carrying this
+   class directly (backdrop-filter + transform animates very poorly) — wrap
+   it and animate the wrapper instead. */
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-brd);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  contain: paint;
+}
+
+@media (max-width: 767px) {
+  .glass {
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: var(--color-paper);
+  }
+}
+
+/* Dock map-orb live ring — a segmented coral arc, one dash pair per live
+   event (capped visually), pulsing gently. Zero live events = no ring at
+   all, handled by not rendering the SVG rather than hiding it empty. */
+@keyframes orb-ring-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.orb-ring {
+  animation: orb-ring-pulse 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb-ring { animation: none; }
 }

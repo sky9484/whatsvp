@@ -20,7 +20,7 @@ export default function Header({ onGuilds, onOrganize, onChat, onOpenSettings }:
     profile?.display_name?.trim()?.[0]?.toUpperCase() ?? '?';
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-paper/90 backdrop-blur-md border-b border-hairline flex items-center justify-between px-4 sm:px-6">
+    <header className="glass fixed top-0 left-0 right-0 z-40 h-14 flex items-center justify-between px-4 sm:px-6">
       {/* Wordmark + tagline (tagline hidden on mobile to keep the bar slim) */}
       <div className="flex-none flex items-baseline gap-2 select-none">
         <span className="font-semibold text-[17px] text-ink tracking-tight">
@@ -29,7 +29,7 @@ export default function Header({ onGuilds, onOrganize, onChat, onOpenSettings }:
         <span className="hidden lg:inline text-xs text-sub">{TAGLINE}</span>
       </div>
 
-      {/* Centre nav — desktop only; mobile uses the bottom TabBar instead */}
+      {/* Centre nav — desktop only; mobile uses the Dock instead */}
       <nav className="hidden md:flex flex-1 justify-center gap-7 text-sm">
         <Link href="/about" className="text-ink/60 hover:text-ink active:scale-95 transition-all">
           how

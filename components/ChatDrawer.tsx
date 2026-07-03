@@ -4,8 +4,7 @@ import { useState, useMemo } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { useAuth } from '@/lib/auth';
 import { createAuthedClient } from '@/lib/supabase/client';
-import GuildChannels from './chat/GuildChannels';
-import EventRooms from './chat/EventRooms';
+import Community from './chat/Community';
 import DirectMessages from './chat/DirectMessages';
 
 interface ChatDrawerProps {
@@ -13,17 +12,19 @@ interface ChatDrawerProps {
   onClose: () => void;
 }
 
-type Tab = 'guilds' | 'live' | 'dms';
+// v4 P1: 3 flat tabs (Guilds/Live/DMs) -> a top segmented DMs | Community
+// control, with Community stacking "Happening now" (event rooms) above
+// guild channels (see components/chat/Community.tsx).
+type Tab = 'community' | 'dms';
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'guilds', label: 'Guilds' },
-  { key: 'live', label: 'Live' },
   { key: 'dms', label: 'DMs' },
+  { key: 'community', label: 'Community' },
 ];
 
-/** Chat 2.0 shell: guild channels (existing groups/topics), ephemeral event rooms, and DMs between mutuals. */
+/** Chat 2.0 shell: DMs between mutuals, and Community (guild channels + ephemeral event rooms). */
 export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
   const { token, isAuthed } = useAuth();
-  const [tab, setTab] = useState<Tab>('guilds');
+  const [tab, setTab] = useState<Tab>('community');
 
   // One authed client per session token (also authorizes Realtime).
   const supabase = useMemo<SupabaseClient | null>(() => createAuthedClient(token), [token]);
@@ -48,15 +49,15 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
                     sm:top-0 sm:bottom-0 sm:left-auto sm:right-0 sm:h-auto sm:w-[440px] sm:rounded-none sm:border-l sm:border-t-0
                     ${isOpen ? 'translate-y-0 sm:translate-x-0' : 'translate-y-[110%] sm:translate-y-0 sm:translate-x-full'}`}
       >
-        {/* Header */}
+        {/* Header — glass segmented control, per the v4 place-anchored glass system */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-hairline">
-          <div className="flex items-center gap-1 bg-ink/[0.05] rounded-full p-0.5">
+          <div className="glass flex items-center gap-1 rounded-full p-0.5">
             {TABS.map((t) => (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
                 className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  tab === t.key ? 'bg-paper text-ink shadow-sm' : 'text-ink/50 hover:text-ink'
+                  tab === t.key ? 'bg-teal text-white' : 'text-ink/60 hover:text-ink'
                 }`}
               >
                 {t.label}
@@ -79,8 +80,7 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
           </div>
         ) : (
           <>
-            {tab === 'guilds' && <GuildChannels supabase={supabase} />}
-            {tab === 'live' && <EventRooms supabase={supabase} />}
+            {tab === 'community' && <Community supabase={supabase} />}
             {tab === 'dms' && <DirectMessages supabase={supabase} />}
           </>
         )}

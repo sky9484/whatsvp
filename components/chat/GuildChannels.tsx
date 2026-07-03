@@ -10,10 +10,15 @@ import RoomView from './RoomView';
 
 interface GuildChannelsProps {
   supabase: SupabaseClient | null;
+  /** True when rendered stacked inside Community.tsx (not full-height). */
+  embedded?: boolean;
+  /** Fires whenever a group opens/closes — lets Community.tsx give this the
+   * full panel while a channel is open. */
+  onOpenChange?: (open: boolean) => void;
 }
 
 /** Tier 1 of Chat 2.0: existing groups -> topics -> messages (unchanged behavior, now on the shared RoomView engine). */
-export default function GuildChannels({ supabase }: GuildChannelsProps) {
+export default function GuildChannels({ supabase, embedded = false, onOpenChange }: GuildChannelsProps) {
   const { token, profile } = useAuth();
   const [myGroups, setMyGroups] = useState<Group[]>([]);
   const [discover, setDiscover] = useState<Group[]>([]);
@@ -23,6 +28,11 @@ export default function GuildChannels({ supabase }: GuildChannelsProps) {
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    onOpenChange?.(Boolean(activeGroup));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGroup]);
 
   const loadGroups = useCallback(async () => {
     if (!supabase || !profile) return;
@@ -136,7 +146,7 @@ export default function GuildChannels({ supabase }: GuildChannelsProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-3 space-y-4">
+    <div className={embedded ? 'p-3 space-y-4' : 'flex-1 overflow-y-auto p-3 space-y-4'}>
       <section>
         <div className="flex items-center justify-between px-1 mb-1.5">
           <h3 className="text-xs font-semibold text-ink/50 uppercase tracking-wide">Your groups</h3>

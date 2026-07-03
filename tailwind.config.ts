@@ -19,11 +19,67 @@ const config: Config = {
         surface: withVar('--surface'),
         ink: withVar('--ink'),
         sub: withVar('--sub'),
-        teal: withVar('--teal'),
-        live: withVar('--live'),
-        upcoming: withVar('--upcoming'),
+        // v4 semantic aliases — surface-1 (base) / surface-2 (raised) name the
+        // same two layers `paper`/`surface` already are; kept as separate
+        // Tailwind keys so v4 components can use the vocabulary the brief
+        // specifies without redefining the underlying values.
+        'surface-1': withVar('--paper'),
+        'surface-2': withVar('--surface'),
         info: withVar('--info'),
         hairline: withVar('--hairline'),
+        'bubble-me': withVar('--bubble-me'),
+        ok: withVar('--ok'),
+        warn: withVar('--warn'),
+        danger: withVar('--danger'),
+        // teal/live keep their existing DEFAULT (CSS-var, dark-mode-adaptive)
+        // for every current bg-teal/text-live/etc. usage, and additionally
+        // gain static 50–900 ramps for v4's glass/chip/badge accents. The
+        // ramps are NOT CSS-var-driven (unlike DEFAULT) — a deliberate
+        // simplification, since these are fine-grained accent steps, not the
+        // core adaptive surface language.
+        teal: {
+          DEFAULT: withVar('--teal'),
+          50: '#EAF6F1',
+          100: '#CFEDE1',
+          200: '#A3DCC7',
+          300: '#6FC7A9',
+          400: '#3DAE8C',
+          500: '#1D9E75',
+          600: '#0F6E56',
+          700: '#0C5A46',
+          800: '#0A4837',
+          900: '#073A2C',
+        },
+        live: {
+          DEFAULT: withVar('--live'),
+          50: '#FDF1EC',
+          100: '#FADDD0',
+          200: '#F4B69C',
+          300: '#ED8F68',
+          400: '#E4713F',
+          500: '#D85A30',
+          600: '#B84523',
+          700: '#96371C',
+          800: '#782C16',
+          900: '#602311',
+        },
+        // "coral" is the brief's generic name for the same hue `live` already
+        // carries in this codebase (an event being live now) — added as an
+        // alias scale for v4 components (dock ring, badges) that want the
+        // generic accent name rather than the event-status one.
+        coral: {
+          50: '#FDF1EC',
+          100: '#FADDD0',
+          200: '#F4B69C',
+          300: '#ED8F68',
+          400: '#E4713F',
+          500: '#D85A30',
+          600: '#B84523',
+          700: '#96371C',
+          800: '#782C16',
+          900: '#602311',
+        },
+        upcoming: withVar('--upcoming'),
       },
       fontFamily: {
         sans: [

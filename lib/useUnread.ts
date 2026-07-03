@@ -74,3 +74,65 @@ export function useUnreadRooms(rooms: RoomRef[], supabase: SupabaseClient | null
 
   return unread;
 }
+
+/**
+ * A single "is there anything unread anywhere" flag for the Dock's Chat tab
+ * badge (v4 P1). Composes `useUnreadRooms` rather than duplicating its
+ * has-unread logic — it just assembles the room list `useUnreadRooms` needs
+ * from the same three sources GuildChannels/EventRooms/DirectMessages each
+ * already query independently. Same deliberate simplification as everywhere
+ * else in this hook: not live-pushed, refreshed on mount/profile change and
+ * whenever `refreshKey` changes (bump it when the Chat drawer closes so a
+ * just-read badge clears without waiting for a full remount).
+ */
+export function useHasAnyUnread(
+  supabase: SupabaseClient | null,
+  profileId: string | null,
+  refreshKey: unknown = null
+): boolean {
+  const [rooms, setRooms] = useState<RoomRef[]>([]);
+
+  useEffect(() => {
+    if (!supabase || !profileId) {
+      setRooms([]);
+      return;
+    }
+    let cancelled = false;
+
+    (async () => {
+      const [{ data: memberships }, { data: eventRooms }, { data: dms }] = await Promise.all([
+        supabase.from('group_members').select('groups(id)').eq('profile_id', profileId),
+        // RLS already scopes this to rooms the caller has access to (RSVP'd/checked in).
+        supabase.from('event_rooms').select('id'),
+        supabase.from('dm_threads').select('id').or(`profile_a_id.eq.${profileId},profile_b_id.eq.${profileId}`),
+      ]);
+      if (cancelled) return;
+
+      const groupIds = (memberships ?? [])
+        .map((m: { groups: { id: string } | { id: string }[] | null }) =>
+          Array.isArray(m.groups) ? m.groups[0]?.id : m.groups?.id
+        )
+        .filter((id): id is string => Boolean(id));
+
+      let topicIds: string[] = [];
+      if (groupIds.length) {
+        const { data: topics } = await supabase.from('topics').select('id').in('group_id', groupIds);
+        topicIds = (topics ?? []).map((t: { id: string }) => t.id);
+      }
+      if (cancelled) return;
+
+      setRooms([
+        ...topicIds.map((id) => ({ type: 'topic' as const, id })),
+        ...(eventRooms ?? []).map((r: { id: string }) => ({ type: 'event' as const, id: r.id })),
+        ...(dms ?? []).map((d: { id: string }) => ({ type: 'dm' as const, id: d.id })),
+      ]);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, profileId, refreshKey]);
+
+  return useUnreadRooms(rooms, supabase, profileId).size > 0;
+}

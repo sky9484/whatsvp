@@ -1,14 +1,12 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 import Header from './Header';
-import TabBar from './TabBar';
+import Dock from './Dock';
 import HeroOverlay from './HeroOverlay';
-import SearchBar from './SearchBar';
-import StatusFilter from './StatusFilter';
+import GlassSearchBar from './GlassSearchBar';
 import EventPopup from './EventPopup';
 import EventSheet from './EventSheet';
 import OrganizeDrawer from './OrganizeDrawer';
@@ -18,13 +16,16 @@ import GuildsDrawer from './GuildsDrawer';
 import type { Guild } from '@/lib/types';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, createAuthedClient } from '@/lib/supabase/client';
 import { withStatus, filterEvents, segmentCounts, getEventStatus, formatEventTime } from '@/lib/utils';
 import type { Event, EventFilter, RawEvent } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
+import { useToast } from '@/lib/toast';
+import { useHasAnyUnread } from '@/lib/useUnread';
 import { resolveLandmark } from '@/lib/buildings';
 import { getDemoEvents } from '@/lib/demoEvents';
 import type { BuildingFocus } from './Map';
+import type { DockActive } from './Dock';
 
 // MapLibre requires browser APIs — must be loaded client-only
 const Map = dynamic(() => import('./Map'), {
@@ -51,17 +52,24 @@ export default function MapContainer() {
   const [buildingFocus, setBuildingFocus] = useState<BuildingFocus | null>(null);
   const [loading, setLoading] = useState(true);
   const [demoMode, setDemoMode] = useState(false);
+  const [panSignal, setPanSignal] = useState(0);
+  const [chatRefreshKey, setChatRefreshKey] = useState(0);
 
-  const { address, login } = useAuth();
-  const router = useRouter();
+  const { address, login, token, profile } = useAuth();
+  const toast = useToast();
 
-  // Honor ?open=guilds|chat from a cross-page nav (the Passport page's tab bar
-  // links back here since guilds/chat are drawers-over-the-map, not routes),
+  // One authed client per session token — used only for the aggregate unread
+  // check below (the map's own event reads use the plain anon client further down).
+  const authedSupabase = useMemo(() => createAuthedClient(token), [token]);
+  const hasUnreadChat = useHasAnyUnread(authedSupabase, profile?.id ?? null, chatRefreshKey);
+
+  // Honor ?open=guilds|chat|settings from a cross-page nav (the Passport page's
+  // Dock links back here since these are drawers-over-the-map, not routes),
   // then clean the URL. Read via window.location rather than useSearchParams
   // so this stays a plain one-shot effect with no Suspense boundary required.
   useEffect(() => {
     const open = new URLSearchParams(window.location.search).get('open');
-    if (open === 'guilds' || open === 'chat') {
+    if (open === 'guilds' || open === 'chat' || open === 'settings') {
       setActiveDrawer(open);
       window.history.replaceState(null, '', '/');
     }
@@ -186,7 +194,11 @@ export default function MapContainer() {
     setActiveDrawer('chat');
   }, [address, login]);
 
-  const handlePassport = useCallback(() => {
+  // Dock's Profile tab and the header's avatar chip both open Settings — the
+  // real /passport page (a shareable, page-like collection view) is one tap
+  // deeper via Settings' "View full Passport" link, not a dock destination
+  // of its own (the v4 dock has 5 slots: Scenes/Guilds/map/Chat/Profile).
+  const handleOpenSettings = useCallback(() => {
     if (!address) {
       login();
       return;
@@ -194,17 +206,27 @@ export default function MapContainer() {
     setActiveDrawer('settings');
   }, [address, login]);
 
-  // The TabBar's Passport tab navigates to the real /passport page (a
-  // shareable, page-like collection view) rather than opening a drawer.
-  const handleViewPassport = useCallback(() => {
-    if (!address) {
-      login();
-      return;
-    }
-    router.push('/passport');
-  }, [address, login, router]);
+  // Scenes (v4 P4) isn't built yet — the dock tab exists per the v4 nav spec,
+  // but taps show an honest "coming soon" rather than a dead or faked destination.
+  const handleScenes = useCallback(() => {
+    toast.show('Scenes are coming soon — check back after you check in somewhere.');
+  }, [toast]);
 
-  const closeDrawer = useCallback(() => setActiveDrawer(null), []);
+  const closeDrawer = useCallback(() => {
+    setActiveDrawer((prev) => {
+      if (prev === 'chat') setChatRefreshKey((k) => k + 1); // clear the Dock's unread badge promptly
+      return null;
+    });
+  }, []);
+
+  // Map orb: tap closes back to map home if a drawer is open; tap again
+  // once already home recenters on me (the brief's "tap = home; tap again = recenter").
+  const handleMapOrb = useCallback(() => {
+    if (activeDrawer !== null) closeDrawer();
+    else setGeolocateTrigger((n) => n + 1);
+  }, [activeDrawer, closeDrawer]);
+
+  const dockActive: DockActive = activeDrawer === 'guilds' ? 'guilds' : activeDrawer === 'chat' ? 'chat' : activeDrawer === 'settings' ? 'profile' : null;
 
   // Shared by EventPopup (desktop) and EventSheet (mobile) — both act on
   // whichever event is currently selected/focused.
@@ -236,6 +258,7 @@ export default function MapContainer() {
         onEventSelect={handleEventSelect}
         geolocateTrigger={geolocateTrigger}
         buildingFocus={buildingFocus}
+        onUserPanStart={() => setPanSignal((n) => n + 1)}
       />
 
       {/* Top header */}
@@ -243,17 +266,20 @@ export default function MapContainer() {
         onGuilds={() => setActiveDrawer('guilds')}
         onOrganize={handleOrganize}
         onChat={handleChat}
-        onOpenSettings={handlePassport}
+        onOpenSettings={handleOpenSettings}
       />
 
-      {/* Bottom tab bar — mobile only; desktop uses the header's top nav.
-          'organize' has no tab (it's the floating +), so it maps back to 'map'. */}
-      <TabBar
-        active={activeDrawer === 'guilds' ? 'guilds' : activeDrawer === 'chat' ? 'chat' : 'map'}
-        onMap={closeDrawer}
+      {/* The Dock — mobile only; desktop uses the header's top nav.
+          'organize' has no dock slot (it's the floating +). */}
+      <Dock
+        active={dockActive}
+        liveCount={liveCount}
+        hasUnreadChat={hasUnreadChat}
+        onScenes={handleScenes}
         onGuilds={() => setActiveDrawer('guilds')}
+        onMapOrb={handleMapOrb}
         onChat={handleChat}
-        onPassport={handleViewPassport}
+        onProfile={handleOpenSettings}
       />
 
       {/* Floating "+" — mobile-only entry point for Organize (desktop uses the header nav) */}
@@ -286,18 +312,18 @@ export default function MapContainer() {
         </div>
       )}
 
-      {/* Search + status filter card — anchored to the bottom on mobile (above the
-          EventSheet peek carousel + tab bar) and desktop alike, per the reposition. */}
-      <div className="absolute bottom-[144px] md:bottom-6 left-1/2 -translate-x-1/2 z-30 w-full max-w-md px-3 pointer-events-none">
-        <div className="bg-paper/95 backdrop-blur-md rounded-2xl shadow-lg border border-hairline p-3 space-y-2 pointer-events-auto">
-          <SearchBar
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            onNearMe={() => setGeolocateTrigger((n) => n + 1)}
-          />
-          <StatusFilter active={filter} onChange={setFilter} counts={timeCounts} />
-        </div>
-      </div>
+      {/* Glass search bar — search + near-me + status filter in one floating
+          panel (v4 P1, replaces the separate SearchBar/StatusFilter cards).
+          Collapses to a pill on map pan, expands on tap. */}
+      <GlassSearchBar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onNearMe={() => setGeolocateTrigger((n) => n + 1)}
+        filter={filter}
+        onFilterChange={setFilter}
+        counts={timeCounts}
+        collapseSignal={panSignal}
+      />
 
       {/* Live-presence indicator — stacks above the search/filter card */}
       {liveCount > 0 && (

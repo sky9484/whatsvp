@@ -7,11 +7,13 @@ import { useAuth } from '@/lib/auth';
 import { formatEventTime } from '@/lib/utils';
 import { PASSPORT_PAGE } from '@/lib/copy';
 import type { Checkin } from '@/lib/types';
-import TabBar from '@/components/TabBar';
+import Dock from '@/components/Dock';
+import { useToast } from '@/lib/toast';
 
 export default function PassportPage() {
   const { token, profile, address, login } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const [stamps, setStamps] = useState<Checkin[] | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -116,12 +118,18 @@ export default function PassportPage() {
         )}
       </main>
 
-      <TabBar
-        active="passport"
-        onMap={() => router.push('/')}
+      {/* liveCount/hasUnreadChat are 0/false here — this page doesn't hold a
+          live event feed or an authed chat client; those are real signals
+          only on the map page (MapContainer), not faked placeholders. */}
+      <Dock
+        active="profile"
+        liveCount={0}
+        hasUnreadChat={false}
+        onScenes={() => toast.show('Scenes are coming soon — check back after you check in somewhere.')}
         onGuilds={() => router.push('/?open=guilds')}
+        onMapOrb={() => router.push('/')}
         onChat={() => router.push('/?open=chat')}
-        onPassport={() => {}}
+        onProfile={() => router.push('/?open=settings')}
       />
     </div>
   );

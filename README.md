@@ -54,7 +54,7 @@ Repositioning: **"The live map of the KL builder scene"** → **"Your city's com
 
 **P1 — the auntie test.** `BuilderId` renamed to **Passport** everywhere (Move module [passport.move](move/whatsvp/sources/passport.move), types, routes, UI — nothing was on-chain yet, so this was free). [lib/copy.ts](lib/copy.ts) is now the canonical, grep-able registry of user-facing vocabulary — forbidden words (NFT, wallet, mint, on-chain, blockchain, crypto, Web3, token, gas, Sui, address) are audited out of every component/route except `Settings → Advanced`, which is the one place chain details may appear. [lib/demoEvents.ts](lib/demoEvents.ts) + [seed.sql](supabase/seed.sql) now seed **7 guilds across 8 community types** (run club, photography, badminton, food, student society, board games, founders, Web3) — a Web3 meetup is one community among many, not the default.
 
-**Responsive nav.** [TabBar.tsx](components/TabBar.tsx) — a bottom tab bar (Map/Guilds/Chat/Passport) on `<md` screens; desktop keeps the header's top nav (`how/guilds/organize/chat`). Organize becomes a floating "+" on mobile. MapContainer's four independent drawer-open booleans were replaced with a single `activeDrawer` state — this was also a confirmed audit finding (drawers could stack with undefined dismiss behaviour), fixed as a natural byproduct of building tab-highlighting.
+**Responsive nav.** `TabBar.tsx` (superseded by [Dock.tsx](components/Dock.tsx) in v4 P1 — see below) — a bottom tab bar (Map/Guilds/Chat/Passport) on `<md` screens; desktop keeps the header's top nav (`how/guilds/organize/chat`). Organize becomes a floating "+" on mobile. MapContainer's four independent drawer-open booleans were replaced with a single `activeDrawer` state — this was also a confirmed audit finding (drawers could stack with undefined dismiss behaviour), fixed as a natural byproduct of building tab-highlighting.
 
 **Design tokens.** `app/globals.css` gained `surface`/`sub`/`info` CSS-variable tokens (light + dark, exact v3 hex values) alongside the existing `paper`/`ink`/`teal`/`live`/`upcoming`/`hairline`; `tailwind.config.ts` gained a type scale (`text-body`, `text-h1`, …) and named radii (`rounded-control`/`card`/`sheet`) for new components to opt into. Satoshi font swap and framer-motion are deferred to the P2 redesign pass — nothing in P1 needed them, and adding either now would be premature.
 
@@ -106,6 +106,23 @@ Two things had to close before any v4 work: the guild.move access-control hole b
 - **Withdraw had no confirm screen and no server-verified history.** Clicking "Send" fired `signAndExecute` immediately, and nothing was recorded once it succeeded. Settings now shows a distinct **review step** (recipient, amount, network) before signing, and on success posts the digest to [`/api/withdraw/verify`](app/api/withdraw/verify/route.ts), which re-fetches the transaction by digest, confirms the sender matches the caller's session address, derives the recipient + amount from the chain's own balance changes (never trusting what the client reports), and writes the one row to `withdrawals` ([008_p0_audit_fixes.sql](supabase/migrations/008_p0_audit_fixes.sql)) that has no client INSERT policy at all. **Honest limitation:** withdraw is self-custodial and client-signed with no server relay, so no backend check can *block* the on-chain transfer itself — the brief's "caps" are enforceable for sponsored/relayed transfers (v4 §5.5), not this one. What's added instead is a UI-level gate (unlocks 24h after account creation, and once Passport is set up if Move is published) plus the audit trail above.
 
 Neither fix is on-chain yet — same constraint as every Move module in this project (no Sui/Move CLI in this build environment). They're authored and type-check-by-hand-review; publishing + verifying on-chain happens on the operator's machine, and `move/whatsvp` must not be published as `guild.move` previously stood.
+
+### v4 — "Registration 2.0 · Glass/Dock UI · Scenes · Real Money on Sui"
+
+A large follow-on brief: P0 audit (above) → P1 Glass/Dock UI → P2 Registration 2.0 → P3 Avatars/Presence → P4 Scenes → P5 real USDC money on Sui mainnet → P6 chat/design polish. Superseded from v3: the tab bar, the search/filter card, and the chat drawer's tab structure.
+
+| P | Scope | State |
+|---|---|---|
+| **0** | Audit fixes — guild.move access control, cosmetics MintCap, Move.toml pin, withdraw-flow audit | ✅ Built (see above) |
+| **1** | Glass & Dock UI — place-anchored glass system, mobile Dock with live-ring map orb, glass search bar, Chat 2.0 restructure (DMs/Community) | ✅ Built |
+
+**P1 — the Dock and the glass system.** The "something new" instead of Instagram-neutral-gray glass: panels are tinted paper/teal (`--glass-bg`/`--glass-brd` in [globals.css](app/globals.css), a `.glass` utility class with `contain: paint`, a cheaper blur below `md`, and a solid fallback for browsers without `backdrop-filter`), never plain gray. Full `teal`/`live` (+ a `coral` alias) 50–900 ramps and semantic aliases (`surface-1`/`surface-2`, `ok`/`warn`/`danger`, `bubble-me`) were added to [tailwind.config.ts](tailwind.config.ts) — `DEFAULT` stays the existing CSS-var (dark-mode-adaptive) value so every current `bg-teal`/`text-live` usage is unaffected; the numbered steps are static (not CSS-var-driven), a deliberate simplification since they're fine-grained accents, not the core adaptive surface language.
+
+- **[Dock.tsx](components/Dock.tsx)** replaces `TabBar.tsx`: five slots — Scenes · Guilds · **map orb** · Chat · Profile. The map orb is a raised 64px circle overlapping the bar, wearing a segmented coral ring sized to the live-event count (zero live = no ring at all, not an empty one) that pulses gently; tap goes to map-home if a drawer's open, tap again recenters on you. **Scenes has no backing feature yet** (that's v4 P4) — its dock slot exists per the spec, but tapping it shows an honest "coming soon" toast rather than a dead link or a faked screen. **Profile** opens the same Settings drawer the header's avatar chip already did (Passport itself stays one tap deeper, via Settings' existing "View full Passport" link) — not a new destination. Chat's badge reuses a new `useHasAnyUnread` hook ([lib/useUnread.ts](lib/useUnread.ts)) that composes the existing `useUnreadRooms` logic across all three room sources instead of duplicating it; refreshes on mount and when the Chat drawer closes (not live-pushed, same deliberate simplification as reactions/presence elsewhere in Chat 2.0).
+- **[GlassSearchBar.tsx](components/GlassSearchBar.tsx)** replaces `SearchBar.tsx` + `StatusFilter.tsx` as two separate cards: search + near-me + the 3-way status filter in one floating glass panel that collapses to a pill on map pan (`Map.tsx` gained an `onUserPanStart` prop wired to MapLibre's `dragstart` — fires only for user-initiated panning, never the building-reveal flyTo) and expands on tap or the moment there's a query to protect.
+- **Chat restructure**: `ChatDrawer.tsx`'s 3 flat tabs (Guilds/Live/DMs) became a top segmented **DMs | Community** control; `components/chat/Community.tsx` stacks "Happening now" (event rooms) above guild channels. Both `EventRooms` and `GuildChannels` gained `embedded`/`onOpenChange` props and **stay mounted at all times** inside `Community` — only their layout classes swap between "stacked list" and "full panel" as a room opens, so their internal open-room state survives the transition (an earlier design that conditionally mounted/unmounted them on open would have reset that state on every tap — caught before writing it, not after).
+- Desktop's top nav (`Header.tsx`) is now `.glass` too, instead of a flat `bg-paper/90`.
+- **Verified**: clean build; mobile geometry checked via `getBoundingClientRect()` (not screenshots — the standing limitation in this environment) at 390×812 — Dock, glass search card, and the live-count badge all have clear gaps with no overlap; dark mode confirmed via the same tokens; desktop confirmed at full 1280×800 DOM size (a screenshot artifact at that resolution painted mostly black despite correct `offsetWidth`/`offsetHeight` on `<body>`/`<header>`/the map container — a capture-tool quirk, not a layout bug, confirmed by direct measurement rather than trusting the image).
 
 ---
 
@@ -188,7 +205,7 @@ Open <http://localhost:3000>. With the seed data loaded you'll see live (coral) 
 ```
 Browser (Next.js / React)
   ├─ MapLibre map  ── reads events from Supabase (anon client, RLS-protected)
-  ├─ SearchBar + StatusFilter ── search + near-me + past/live/upcoming
+  ├─ GlassSearchBar ── search + near-me + past/live/upcoming, one floating panel
   ├─ EventPopup (desktop) / EventSheet (mobile) ── event detail, sharing lib/useEventDetail.ts
   └─ OrganizeDrawer ── POSTs a Luma URL to /api/organize
 
@@ -298,6 +315,7 @@ app/
 components/
   chat/
     RoomView.tsx            shared message list + composer: reactions, reply-to, grouping, photo strip (v3 P4)
+    Community.tsx           "Happening now" (event rooms) stacked above guild channels (v4 P1)
     GuildChannels.tsx       tier 1 — groups -> topics (existing behavior, now on lib/useRoom.ts)
     EventRooms.tsx          tier 2 — ephemeral per-event rooms + recap strip (v3 P4)
     DirectMessages.tsx      tier 3 — friend requests + DMs + disappearing mode (v3 P4)
@@ -305,10 +323,9 @@ components/
   MapContainer.tsx        client orchestrator (state, data fetch, gating, guild filter)
   Map.tsx                 MapLibre: theme-aware style, clustering, iso building-reveal overlay
   IsoBuilding.tsx         isometric SVG landmark renderer + photo-card renderer
-  Header.tsx              slim top bar: wordmark + tagline (lg+) + desktop nav + theme toggle + user chip
-  TabBar.tsx              bottom tab bar (Map/Guilds/Chat/Passport) — mobile only
-  SearchBar.tsx           search + near-me (desktop + mobile)
-  StatusFilter.tsx        3-button status filter: past/live/upcoming
+  Header.tsx              slim top bar: wordmark + tagline (lg+) + desktop nav (glass) + theme toggle + user chip
+  Dock.tsx                mobile bottom nav: Scenes/Guilds/map-orb/Chat/Profile, live-ring orb (v4 P1)
+  GlassSearchBar.tsx      search + near-me + status filter, one glass panel, collapses on pan (v4 P1)
   EventPopup.tsx           desktop event detail card (floating, md:block)
   EventSheet.tsx           mobile draggable bottom sheet: peek carousel → half → full (md:hidden)
   EventDetailContent.tsx  shared detail body (time/venue/transit/RSVP/share/building) — used by both

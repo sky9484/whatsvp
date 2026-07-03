@@ -11,6 +11,13 @@ import RoomView from './RoomView';
 
 interface EventRoomsProps {
   supabase: SupabaseClient | null;
+  /** True when rendered stacked inside Community.tsx's "Happening now"
+   * section (not full-height, no own scroll container) — false when this
+   * component owns the whole chat panel (a room is open). */
+  embedded?: boolean;
+  /** Fires whenever a room opens/closes, so a parent stacking this alongside
+   * GuildChannels (Community.tsx) knows to give it the full panel. */
+  onOpenChange?: (open: boolean) => void;
 }
 
 type Phase = 'soon' | 'live' | 'read-only' | 'archived';
@@ -34,12 +41,17 @@ const PHASE_LABEL: Record<Phase, string> = {
 };
 
 /** Tier 2 of Chat 2.0: ephemeral rooms auto-created per event, access = RSVP'd or checked in. */
-export default function EventRooms({ supabase }: EventRoomsProps) {
+export default function EventRooms({ supabase, embedded = false, onOpenChange }: EventRoomsProps) {
   const { token, profile } = useAuth();
   const [rooms, setRooms] = useState<RoomWithEvent[]>([]);
   const [active, setActive] = useState<RoomWithEvent | null>(null);
   const [photos, setPhotos] = useState<EventPhoto[]>([]);
   const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    onOpenChange?.(Boolean(active));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -128,7 +140,7 @@ export default function EventRooms({ supabase }: EventRoomsProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-3">
+    <div className={embedded ? 'p-3' : 'flex-1 overflow-y-auto p-3'}>
       {rooms.length === 0 ? (
         <p className="px-1 text-sm text-ink/40">No event rooms yet — RSVP or check in to an event to see its room here.</p>
       ) : (

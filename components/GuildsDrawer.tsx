@@ -5,10 +5,12 @@ import Link from 'next/link';
 import AddFriendButton from './AddFriendButton';
 import AvatarComposite from './AvatarComposite';
 import SceneViewer from './SceneViewer';
+import SendMoney from './SendMoney';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { withStatus, whatsAppShareUrl } from '@/lib/utils';
-import { SCENES } from '@/lib/copy';
+import { baseUnitsToUsdc, usdcToBaseUnits } from '@/lib/money';
+import { SCENES, MONEY } from '@/lib/copy';
 import type { Guild, GuildMember, Event, RawEvent, Scene } from '@/lib/types';
 
 interface GuildsDrawerProps {
@@ -37,6 +39,7 @@ export default function GuildsDrawer({ isOpen, onClose, onShowGuildEvents }: Gui
   const [busy, setBusy] = useState(false);
   const [recap, setRecap] = useState<Scene[]>([]);
   const [viewerScenes, setViewerScenes] = useState<Scene[] | null>(null);
+  const [payingDues, setPayingDues] = useState(false);
 
   const authHeaders = useCallback(
     () => ({ 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }),
@@ -361,6 +364,16 @@ export default function GuildsDrawer({ isOpen, onClose, onShowGuildEvents }: Gui
                   </svg>
                 </a>
               </div>
+
+              {/* Dues (v4 P5) */}
+              <DuesBlock
+                detail={detail}
+                isOwner={detail.guild.owner_id === profile?.id}
+                myMember={detail.members.find((m) => m.profile_id === profile?.id) ?? null}
+                token={token}
+                onPay={() => setPayingDues(true)}
+                onConfigured={() => openGuild(detail.guild)}
+              />
             </div>
 
             {/* Roster */}
@@ -440,6 +453,112 @@ export default function GuildsDrawer({ isOpen, onClose, onShowGuildEvents }: Gui
           onRemoved={(id) => setViewerScenes((s) => s?.filter((x) => x.id !== id) ?? null)}
         />
       )}
+
+      {payingDues && detail?.guild.owner_address && detail.guild.dues_amount_base && (
+        <SendMoney
+          isOpen
+          onClose={() => setPayingDues(false)}
+          fixedRecipient={{ display_name: `${detail.guild.name} dues`, address: detail.guild.owner_address }}
+          fixedAmount={baseUnitsToUsdc(detail.guild.dues_amount_base)}
+          context={{ kind: 'dues', id: detail.guild.id }}
+          onSent={() => {
+            setPayingDues(false);
+            void openGuild(detail.guild);
+          }}
+        />
+      )}
     </>
+  );
+}
+
+/** Dues card (v4 P5) — members pay, the owner configures amount + period. */
+function DuesBlock({
+  detail,
+  isOwner,
+  myMember,
+  token,
+  onPay,
+  onConfigured,
+}: {
+  detail: GuildDetail;
+  isOwner: boolean;
+  myMember: GuildMember | null;
+  token: string | null;
+  onPay: () => void;
+  onConfigured: () => void;
+}) {
+  const guild = detail.guild;
+  const [editing, setEditing] = useState(false);
+  const [amount, setAmount] = useState(guild.dues_amount_base ? baseUnitsToUsdc(guild.dues_amount_base) : '');
+  const [period, setPeriod] = useState<'none' | 'monthly' | 'yearly'>(guild.dues_period ?? 'none');
+  const [busy, setBusy] = useState(false);
+
+  const duesOn = guild.dues_period && guild.dues_period !== 'none' && guild.dues_amount_base;
+  const paidUntil = myMember?.dues_paid_until ? new Date(myMember.dues_paid_until) : null;
+  const paidCurrent = paidUntil && paidUntil.getTime() > Date.now();
+
+  const saveConfig = async () => {
+    if (!token) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/guilds/${guild.slug}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          dues_period: period,
+          dues_amount_base: period === 'none' || !amount ? null : usdcToBaseUnits(amount).toString(),
+        }),
+      });
+      if (res.ok) {
+        setEditing(false);
+        onConfigured();
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!duesOn && !isOwner) return null;
+
+  return (
+    <div className="mt-3 rounded-xl border border-hairline p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-ink/60 uppercase tracking-wide">Dues</span>
+        {isOwner && (
+          <button onClick={() => setEditing((v) => !v)} className="text-xs text-teal hover:text-teal/70">
+            {editing ? 'Cancel' : duesOn ? 'Edit' : 'Set dues'}
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="mt-2 space-y-2">
+          <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="Amount (USDC)" className="w-full px-3 py-1.5 rounded-lg border border-hairline bg-paper text-sm focus:outline-none focus:ring-2 focus:ring-teal/30" />
+          <select value={period} onChange={(e) => setPeriod(e.target.value as 'none' | 'monthly' | 'yearly')} className="w-full px-3 py-1.5 rounded-lg border border-hairline bg-paper text-sm">
+            <option value="none">No dues</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+          <button onClick={saveConfig} disabled={busy} className="w-full py-1.5 rounded-lg bg-teal text-white text-sm font-semibold disabled:opacity-50">
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      ) : duesOn ? (
+        <div className="mt-1.5">
+          <p className="text-sm text-ink">{baseUnitsToUsdc(guild.dues_amount_base!)} USDC · {guild.dues_period}</p>
+          {paidCurrent ? (
+            <p className="mt-1 text-xs text-teal">{MONEY.duesPaidUntil(paidUntil!.toLocaleDateString())}</p>
+          ) : (
+            guild.owner_address && (
+              <button onClick={onPay} className="mt-2 w-full py-2 rounded-lg bg-teal text-white text-sm font-semibold">
+                {MONEY.payDues}
+              </button>
+            )
+          )}
+        </div>
+      ) : (
+        <p className="mt-1 text-xs text-ink/40">No dues set.</p>
+      )}
+    </div>
   );
 }

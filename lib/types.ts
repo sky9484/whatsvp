@@ -48,6 +48,8 @@ export interface Profile {
   pfp_verified_at?: string | null;
   /** Layered avatar equip state (v4 P3) — {slot: item_id}. Never written directly by the client. */
   avatar_config?: AvatarConfig;
+  /** Pay-to-@handle (v4 P5). Claimed via /api/handle, never a direct client write. */
+  handle?: string | null;
 }
 
 // ── Avatars (v4 P3) ──────────────────────────────────────────────────────────
@@ -88,6 +90,10 @@ export interface Guild {
   created_at: string;
   // Optionally joined:
   member_count?: number;
+  // Dues (v4 P5) — amount in USDC base units, period it covers, owner's pay-to address.
+  dues_amount_base?: string | null;
+  dues_period?: 'none' | 'monthly' | 'yearly';
+  owner_address?: string | null;
 }
 
 export interface GuildMember {
@@ -95,6 +101,7 @@ export interface GuildMember {
   profile_id: string;
   role: 'owner' | 'admin' | 'member';
   joined_at: string;
+  dues_paid_until?: string | null;
   profiles?: { display_name: string; avatar_url?: string | null } | null;
 }
 

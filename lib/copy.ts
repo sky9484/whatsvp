@@ -184,6 +184,41 @@ export const SCENES = {
   recapEmpty: 'No Scenes made it into the recap yet.',
 } as const;
 
+// ── Money (v4 P5) — "Send", "Balance", "≈ RM" only; no wallet/token/crypto ─────
+export const MONEY = {
+  balanceLabel: 'Balance',
+  send: 'Send',
+  receive: 'Receive',
+  sendTitle: 'Send money',
+  toPlaceholder: '@handle',
+  amountPlaceholder: 'Amount (USDC)',
+  review: 'Review',
+  confirmSend: 'Confirm & send',
+  sending: 'Sending…',
+  sentToast: 'Sent ✓',
+  notEnough: 'Not enough in your balance — receive first.',
+  noHandle: 'No one goes by that handle.',
+  claimHandleTitle: 'Claim your @handle',
+  claimHandlePlaceholder: 'yourhandle',
+  claimHandleCta: 'Claim',
+  handleHint: '3–20 letters, numbers, or underscores. People can send to you with this.',
+  receiveTitle: 'Receive',
+  receiveHint: 'Show this to get paid.',
+  soon: 'Payments aren’t available yet.',
+  split: 'Split',
+  splitTitle: 'Split the bill',
+  splitTotal: 'Total (USDC)',
+  splitWith: 'Split with',
+  splitPost: 'Post split',
+  pay: 'Pay',
+  paid: 'Paid ✓',
+  pending: 'Pending',
+  nudge: 'Nudge',
+  payDues: 'Pay dues',
+  duesPaidUntil: (date: string) => `Dues paid until ${date}`,
+  tip: 'Tip the organizer',
+} as const;
+
 // ── Settings → External collectible avatar (opt-in, advanced) ──────────────────
 export const SETTINGS_EXTERNAL_AVATAR = {
   title: 'External collectible avatar',

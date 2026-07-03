@@ -9,6 +9,7 @@ import type { RoomRef } from '@/lib/useRoom';
 import type { EventRoom, EventPhoto, RawEvent } from '@/lib/types';
 import RoomView from './RoomView';
 import SceneCapture from '../SceneCapture';
+import SplitsPanel from '../SplitsPanel';
 
 interface EventRoomsProps {
   supabase: SupabaseClient | null;
@@ -140,6 +141,9 @@ export default function EventRooms({ supabase, embedded = false, onOpenChange }:
         {phase === 'archived' ? (
           <RecapStrip photos={photos} supabase={supabase} />
         ) : (
+          <>
+          {/* Split cards (v4 P5) — the money hero flow, pinned above the room */}
+          <SplitsPanel supabase={supabase} eventId={active.event_id} checkedIn={checkedIn} />
           <RoomView
             room={{ type: 'event', id: active.id }}
             supabase={supabase}
@@ -152,6 +156,7 @@ export default function EventRooms({ supabase, embedded = false, onOpenChange }:
             uploadingPhoto={uploading}
             onAddScene={checkedIn ? () => setShowSceneCapture(true) : undefined}
           />
+          </>
         )}
         {showSceneCapture && (
           <SceneCapture eventId={active.event_id} onClose={() => setShowSceneCapture(false)} onCreated={() => setShowSceneCapture(false)} />

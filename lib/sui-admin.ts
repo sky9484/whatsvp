@@ -40,6 +40,12 @@ function getAdminKeypair(): Ed25519Keypair {
   return cachedKeypair;
 }
 
+/** The backend hot-wallet address, for the treasury-watch balance alert (§5.6). */
+export function getAdminAddress(): string | null {
+  if (!STAMP_ADMIN_PRIVATE_KEY) return null;
+  return getAdminKeypair().toSuiAddress();
+}
+
 export type StampMintResult = { minted: true; digest: string } | { minted: false; reason: string };
 
 /**

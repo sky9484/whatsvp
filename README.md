@@ -118,6 +118,7 @@ A large follow-on brief: P0 audit (above) → P1 Glass/Dock UI → P2 Registrati
 | **2** | Registration 2.0 — RegisterModal, guest capture + claim, capacity/approval, organizer question builder | ✅ Built |
 | **3** | Avatars (free layered system) + Presence (event + opt-in area) | ✅ Built |
 | **4** | Scenes — check-in-gated photo/video moments, viewer, moderation, guild recap | ✅ Built |
+| **5** | Real money on Sui — USDC send, @handles, event-room splits, guild dues, server-verified history, caps | ✅ Built (activates on mainnet publish + Enoki config) |
 
 **P1 — the Dock and the glass system.** The "something new" instead of Instagram-neutral-gray glass: panels are tinted paper/teal (`--glass-bg`/`--glass-brd` in [globals.css](app/globals.css), a `.glass` utility class with `contain: paint`, a cheaper blur below `md`, and a solid fallback for browsers without `backdrop-filter`), never plain gray. Full `teal`/`live` (+ a `coral` alias) 50–900 ramps and semantic aliases (`surface-1`/`surface-2`, `ok`/`warn`/`danger`, `bubble-me`) were added to [tailwind.config.ts](tailwind.config.ts) — `DEFAULT` stays the existing CSS-var (dark-mode-adaptive) value so every current `bg-teal`/`text-live` usage is unaffected; the numbered steps are static (not CSS-var-driven), a deliberate simplification since they're fine-grained accents, not the core adaptive surface language.
 
@@ -156,6 +157,20 @@ A large follow-on brief: P0 audit (above) → P1 Glass/Dock UI → P2 Registrati
 - **Lifecycle**: visible 48h in the normal browsing feed (a query-time filter — `/api/scenes` GET's no-`event_id` mode only looks at the last 48h), hard-deleted at 7 days unless it cleared the recap threshold, everything gone by 30 days regardless (recap included) — `/api/cron/cleanup-expired` sweeps both the Storage object and the row, same "app-level TTL contract" pattern already established for `event_photos`.
 - **Cost guard**: `NEXT_PUBLIC_SCENES_VIDEO_ENABLED` env flag disables in-app video capture (photo-only fallback) if Storage/bandwidth costs from video prove heavy — a full storage-usage-metrics dashboard was out of scope for this pass, flagged rather than built partially.
 - **Verified**: clean build (35 routes, first try). Confirmed in the browser: the Dock's Scenes tab opens the real drawer (no longer the P1 placeholder toast) and correctly stays closed while logged out rather than opening an empty/broken view; no console errors across Scenes, the guild recap fetch path, or the room composer's new camera icon. **Camera/MediaRecorder capture itself could not be live-tested** — this environment has no real camera device, the same standing constraint as geolocation-based check-in and real Enoki login; verified via code review and the parts that don't need a camera (gallery-upload validation logic, signed-URL/RLS wiring, the tap-vs-hold fix above, which was caught by re-reading the pointer-event logic, not by clicking it).
+
+**P5 — Real money on Sui.** Migration [012_money.sql](supabase/migrations/012_money.sql). Self-custodial USDC, anchored to events and guilds — NOT a general wallet: no fiat ramp, no held balances, no yield. Every money surface passes the auntie test ("Balance", "Send", "≈ RM", "@handle" — never wallet/token/crypto).
+
+- **Mainnet gating is real, not decorative.** Only mainnet's native USDC type is hardcoded ([lib/money.ts](lib/money.ts)) — verified against Circle's docs. On the default (testnet) config with no `NEXT_PUBLIC_USDC_TYPE` set, `isMoneyConfigured()` is false and **every money surface stays hidden** — I deliberately refused to ship an unverified testnet coin address, since a wrong type would silently point real transfers at the wrong asset. This is the same "gated on env, degrades to nothing" discipline as the Move features. Full activation still needs the operator steps: publish to mainnet, fund the backend signer, configure the Enoki mainnet sponsorship allowlist — none doable from this build environment (no Sui CLI, no live Enoki app), same standing constraint as every on-chain feature in this project.
+- **Transfer engine** ([lib/money.ts](lib/money.ts) `buildUsdcTransferTx` + [lib/useMoney.ts](lib/useMoney.ts)): fetches the sender's USDC coins, merges → splits the exact amount → transfers, signed by the Enoki wallet (gas sponsored when the coin ops are on the mainnet allowlist; otherwise the user pays their own gas, same as withdraw). USDC's 6-decimal math is done in `bigint` base units throughout — never floats — to avoid rounding drift.
+- **History integrity** ([/api/transfers/verify](app/api/transfers/verify/route.ts)): the client posts the digest after signing; the **server** re-fetches the tx, confirms sender = this session's address, the coin type, the recipient, and the amount from the chain's own balance changes — never a client-reported figure — then writes the `transfers` row (unique digest, idempotent) and applies the context side effect (mark a split share paid / extend guild dues), each re-verifying recipient + amount independently. Exactly the P0 withdraw-audit pattern, generalized.
+- **@handles** ([/api/handle](app/api/handle/route.ts), citext-unique `profiles.handle`): claim (format + reserved-word + uniqueness checks server-side, direct client writes revoked) and resolve handle→send-target for the confirm screen. Pay-to-@handle means no free-text address entry anywhere in the normal flow (that stays in Settings → Advanced's withdraw) — cutting fat-finger + phishing surface per §5.2.
+- **Confirm screen always** ([SendMoney.tsx](components/SendMoney.tsx)): recipient avatar + handle, amount, ≈RM, before any signing — a hard requirement, so it's a shared component every send path (Settings "Send", split pay, dues) routes through. The money surface lives in Settings ([MoneyCard.tsx](components/MoneyCard.tsx)) — Balance + Send + a claimable @handle + a Receive QR (`qrcode`, already a dep) — not a dedicated "wallet screen", per the scope law.
+- **Splits — the hero flow** ([SplitsPanel.tsx](components/SplitsPanel.tsx), [/api/splits](app/api/splits/route.ts)): a checked-in member starts a split against the auto-suggested list of other checked-in attendees; it fans out one share row per person; each participant one-taps Pay (through the shared confirm screen) and the card **ticks live** via a Realtime subscription on `split_shares`. Creation is server-side (snapshots the payee address, requires the creator's own check-in); paid status flips only when `/api/transfers/verify` confirms a real on-chain payment for that share.
+- **Guild dues** ([GuildsDrawer.tsx](components/GuildsDrawer.tsx) `DuesBlock`): the owner sets amount + period (monthly/yearly), members "Pay dues" to the owner's address through the confirm screen, and a verified dues payment extends `guild_members.dues_paid_until` (server-written, never self-set). The guild-detail route now returns the owner's address for the client to build the PTB; the server re-verifies it at verify time regardless.
+- **Caps & new-account friction** ([lib/moneyGuards.ts](lib/moneyGuards.ts), [lib/rateLimit.ts](lib/rateLimit.ts), §5.5): transfers unlock only after 24h account age (+ a Passport when Move is published — skipped otherwise, same trap-avoidance as P0/P3); ≤20 transfers/user/day; a ≤200 USDC sponsored ceiling constant; per-profile + per-IP in-memory rate limits on the money route (best-effort damper, honestly documented — the durable defense is the unique-digest + daily-count DB invariants).
+- **Ops** ([/api/cron/treasury-watch](app/api/cron/treasury-watch/route.ts), hourly): alerts when the backend signer's SUI runs low, when the day's transfer volume nears `SPONSOR_DAILY_CAP_USD`, or when `chain_ops` logged recent failures — every alert logged to `chain_ops` and emailed to `OPERATOR_EMAIL` when mail is configured. FX ([/api/fx](app/api/fx/route.ts)) fetches USD→MYR (open.er-api.com, no key) cached daily for the "≈ RM" hint — **live-verified returning a real rate**; it fails soft to no-hint rather than erroring.
+- **Deliberately deferred, disclosed**: the **tip-the-organizer** button (§5.4) — it's a thin variant of the send flow, but it needs the event host's address resolved to the client, which the current event payload doesn't carry; wiring that address-resolution path cleanly is a small follow-up I chose not to bolt on hastily. Everything else in §5 is built.
+- **Verified**: clean build (42 routes). `/api/fx` live-returns a real rate; money surfaces correctly stay hidden on the default (testnet, no USDC type) config and produce zero console errors. The actual on-chain transfer / split-pay / dues round-trip **cannot be exercised here** — it needs a funded USDC balance, a real Enoki mainnet session, and the published package, none available in this environment (same standing constraint as every on-chain feature all project long). Verified via build correctness, the server-side verification logic by code review, and the graceful-no-op behavior when unconfigured.
 
 ---
 
@@ -201,6 +216,8 @@ Fill in the keys. **Minimum to see the map running:** none — it falls back to 
 | `STAMP_REGISTRY_ID` / `STAMP_ADMIN_CAP_ID` / `STAMP_ADMIN_PRIVATE_KEY` | From publishing `move/whatsvp` + funding a backend address (see below) | v3 P3 on-chain Stamps |
 | `GUILD_REGISTRY_ID` / `GUILD_ADMIN_CAP_ID` | From publishing `move/whatsvp` — reuses `STAMP_ADMIN_PRIVATE_KEY` as the signer | Pre-v4 P0 on-chain GuildBadges |
 | `RESEND_API_KEY` / `MAIL_FROM` | [resend.com](https://resend.com) (free tier) | v4 P2 guest-claim emails (falls back to an on-screen link without it) |
+| `NEXT_PUBLIC_USDC_TYPE` | The network's USDC coin type — mainnet is hardcoded; set for testnet staging | v4 P5 money surfaces (hidden until set on non-mainnet) |
+| `SPONSOR_DAILY_CAP_USD` / `OPERATOR_EMAIL` | Any daily USD cap + an alert inbox | v4 P5 treasury-watch alerts |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | `npx web-push generate-vapid-keys` | v3 P4 push notifications |
 
 ### 3. Database
@@ -220,6 +237,7 @@ Create a Supabase project, then run the migrations **in order** and (optionally)
 #   supabase/migrations/009_registration.sql   ← Registration 2.0: capacity/approval, questions, guests
 #   supabase/migrations/010_avatars_presence.sql ← avatar catalog/config, granted_items, event + area presence
 #   supabase/migrations/011_scenes.sql         ← Scenes, reactions, reports, moderation_actions, profile_blocks
+#   supabase/migrations/012_money.sql          ← @handles, transfers, splits, guild dues, chain_ops
 #   supabase/seed.sql                            ← optional KL demo pins
 
 # Or with the Supabase CLI:
@@ -381,6 +399,9 @@ components/
   SceneCapture.tsx         check-in-gated camera: photo/video capture + gallery fallback (v4 P4)
   SceneViewer.tsx          full-screen Scenes viewer: progress bars, reactions, report/remove (v4 P4)
   ScenesDrawer.tsx         Dock's Scenes destination: event rows, unseen rings (v4 P4)
+  MoneyCard.tsx            Settings money surface: Balance / Send / @handle / Receive QR (v4 P5)
+  SendMoney.tsx            always-shown send confirm screen, shared by send/split/dues (v4 P5)
+  SplitsPanel.tsx          event-room split cards: create, pay, live tick (v4 P5)
   CheckinQR.tsx            organizer's self-refreshing rotating check-in QR (v3 P3)
   AddFriendButton.tsx      "+ friend" affordance used in rosters/attendee lists (v3 P4)
   ServiceWorkerRegister.tsx  registers public/sw.js on mount, silent (v3 P4)
@@ -395,6 +416,10 @@ lib/
   usePresence.ts          opt-in area presence: toggle, heartbeat, nearby mutuals (v4 P3)
   geohash.ts              dep-free geohash-6 encoder, ~40 lines (v4 P3)
   scenes.ts               Scenes constants + client media validation (duration/size/resize) (v4 P4)
+  money.ts                USDC type/decimals, base-unit math, transfer PTB builder, ≈RM (v4 P5)
+  useMoney.ts             client money engine: balance, FX, send + verify (v4 P5)
+  moneyGuards.ts          server-side spend caps + new-account friction (v4 P5)
+  rateLimit.ts            best-effort in-memory per-key rate limiter (v4 P5)
   checkinCode.ts          dep-free HMAC TOTP-style rotating check-in code (server-only)
   sui-admin.ts            backend Sui signer for AdminCap-gated Stamp mints (server-only, v3 P3)
   useRoom.ts              shared chat engine: history, Realtime, send, reactions, presence (v3 P4)

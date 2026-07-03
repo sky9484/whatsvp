@@ -10,6 +10,7 @@ import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush, type Pu
 import { useAreaPresence } from '@/lib/usePresence';
 import AvatarComposite from './AvatarComposite';
 import AvatarBuilder from './AvatarBuilder';
+import MoneyCard from './MoneyCard';
 
 // viem (EVM wallet + chain defs) is only needed by this opt-in, power-user
 // feature — load it on demand instead of bundling it into every page load.
@@ -481,6 +482,10 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
                 Edit
               </button>
             </div>
+
+            {/* Money — Balance / Send / @handle / Receive (v4 P5). Self-renders
+                nothing until USDC is configured for the network. */}
+            <MoneyCard />
 
             {/* Area presence (v4 P3 Level 2) — ghost by default, mutuals-only, coarse */}
             <div className="rounded-xl border border-hairline p-3.5">

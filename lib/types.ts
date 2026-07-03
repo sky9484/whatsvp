@@ -224,6 +224,24 @@ export interface RegistrationAttendee {
 
 export type RsvpStatus = 'none' | 'confirmed' | 'pending';
 
+// ── Scenes (v4 P4) — check-in-gated proof-of-presence media ─────────────────
+export type SceneKind = 'photo' | 'video';
+
+export interface Scene {
+  id: string;
+  event_id: string;
+  profile_id: string;
+  kind: SceneKind;
+  duration_s?: number | null;
+  hidden: boolean;
+  created_at: string;
+  /** Resolved server-side (signed URL, the bucket is private) — never a raw storage_path client-side. */
+  url?: string;
+  reaction_count?: number;
+  profiles?: { display_name: string; avatar_url?: string | null; avatar_config?: AvatarConfig | null } | null;
+  events?: (Pick<RawEvent, 'id' | 'title' | 'venue_name' | 'lat' | 'lng'> & { host_id?: string | null }) | null;
+}
+
 export interface LumaEventData {
   title: string;
   description?: string | null;

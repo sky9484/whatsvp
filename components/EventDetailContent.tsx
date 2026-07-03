@@ -7,7 +7,8 @@ import { useEventDetail } from '@/lib/useEventDetail';
 import { useRegistration } from '@/lib/useRegistration';
 import RegisterModal from './RegisterModal';
 import AvatarComposite from './AvatarComposite';
-import { REGISTER } from '@/lib/copy';
+import SceneCapture from './SceneCapture';
+import { REGISTER, SCENES } from '@/lib/copy';
 
 interface EventDetailContentProps {
   event: Event;
@@ -58,6 +59,7 @@ export default function EventDetailContent({
   } = useEventDetail(event, onBuildingImage);
 
   const [showRegister, setShowRegister] = useState(false);
+  const [showSceneCapture, setShowSceneCapture] = useState(false);
   const reg = useRegistration(event);
 
   const registerLabel =
@@ -216,8 +218,16 @@ export default function EventDetailContent({
         {checkinOpen && (
           <div className="mt-2">
             {checkedIn ? (
-              <div className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-teal/10 text-teal text-sm font-medium">
-                <span aria-hidden>✓</span> Checked in — stamp added to your Passport
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-teal/10 text-teal text-sm font-medium">
+                  <span aria-hidden>✓</span> Checked in — stamp added to your Passport
+                </div>
+                <button
+                  onClick={() => setShowSceneCapture(true)}
+                  className="w-full py-2 rounded-xl border border-hairline text-sm font-medium text-ink hover:bg-ink/5 transition-colors"
+                >
+                  📸 {SCENES.addCta}
+                </button>
               </div>
             ) : (
               <button
@@ -323,6 +333,10 @@ export default function EventDetailContent({
         reg={reg}
         onOpenEventRoom={onOpenEventRoom}
       />
+
+      {showSceneCapture && (
+        <SceneCapture eventId={event.id} onClose={() => setShowSceneCapture(false)} onCreated={() => setShowSceneCapture(false)} />
+      )}
     </>
   );
 }

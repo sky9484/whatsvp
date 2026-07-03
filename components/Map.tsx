@@ -29,6 +29,10 @@ interface MapProps {
    * programmatic flyTo (building reveal, event-select camera moves), which
    * don't fire it. Used to collapse the glass search bar on pan (v4 P1). */
   onUserPanStart?: () => void;
+  /** A plain "fly here" target (e.g. a Scene's place-chip tap, v4 P4) —
+   * deliberately separate from buildingFocus, which also drives the
+   * isometric overlay/pitch and isn't appropriate for a generic fly-to. */
+  flyToTarget?: { lat: number; lng: number } | null;
 }
 
 const ISO_COLORS: Record<Event['status'], { side: string; dark: string }> = {
@@ -153,7 +157,7 @@ function addPinLayers(map: maplibregl.Map, theme: 'light' | 'dark', data: GeoJSO
   }
 }
 
-export default function Map({ events, onEventSelect, geolocateTrigger, buildingFocus, onUserPanStart }: MapProps) {
+export default function Map({ events, onEventSelect, geolocateTrigger, buildingFocus, onUserPanStart, flyToTarget }: MapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const geolocateRef = useRef<maplibregl.GeolocateControl | null>(null);
@@ -339,6 +343,13 @@ export default function Map({ events, onEventSelect, geolocateTrigger, buildingF
       map.easeTo({ pitch: 0, bearing: 0, duration: 600 });
     }
   }, [buildingFocus, positionIso]);
+
+  // Plain fly-to (Scenes place-chip, v4 P4) — a simple camera move with no
+  // pitch/isometric overlay, deliberately independent of buildingFocus.
+  useEffect(() => {
+    if (!flyToTarget) return;
+    mapRef.current?.flyTo({ center: [flyToTarget.lng, flyToTarget.lat], zoom: 15, duration: 1200, essential: true });
+  }, [flyToTarget]);
 
   const isoColor = buildingFocus ? ISO_COLORS[buildingFocus.status] : null;
 

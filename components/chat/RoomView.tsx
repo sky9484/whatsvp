@@ -20,6 +20,10 @@ interface RoomViewProps {
   photos?: EventPhoto[];
   onUploadPhoto?: (file: File) => Promise<void>;
   uploadingPhoto?: boolean;
+  /** Event rooms only, and only when the caller is checked in (v4 P4) — opens
+   * the Scenes camera. Deliberately separate from onUploadPhoto/the icon
+   * above: that gate is "is the room live", this one is "are you here". */
+  onAddScene?: () => void;
   /** DM rooms only: sent messages get expires_at = now + 24h. */
   disappearing?: boolean;
   /** Fired after a message is successfully sent (e.g. to fire a best-effort push). */
@@ -38,6 +42,7 @@ export default function RoomView({
   photos,
   onUploadPhoto,
   uploadingPhoto,
+  onAddScene,
   disappearing,
   onSent,
 }: RoomViewProps) {
@@ -207,6 +212,17 @@ export default function RoomView({
       )}
 
       <form onSubmit={submit} className="flex items-center gap-2 p-3 border-t border-hairline">
+        {onAddScene && (
+          <button
+            type="button"
+            onClick={onAddScene}
+            aria-label="Add a Scene"
+            title="Add a Scene"
+            className="flex-none w-9 h-9 rounded-full border border-hairline flex items-center justify-center hover:bg-ink/5 transition-colors"
+          >
+            🎬
+          </button>
+        )}
         {onUploadPhoto && (
           <label
             className={`flex-none w-9 h-9 rounded-full border border-hairline flex items-center justify-center cursor-pointer hover:bg-ink/5 transition-colors ${uploadingPhoto ? 'opacity-50 pointer-events-none' : ''}`}

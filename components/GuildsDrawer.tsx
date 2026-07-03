@@ -3,10 +3,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import AddFriendButton from './AddFriendButton';
+import AvatarComposite from './AvatarComposite';
+import SceneViewer from './SceneViewer';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { withStatus, whatsAppShareUrl } from '@/lib/utils';
-import type { Guild, GuildMember, Event, RawEvent } from '@/lib/types';
+import { SCENES } from '@/lib/copy';
+import type { Guild, GuildMember, Event, RawEvent, Scene } from '@/lib/types';
 
 interface GuildsDrawerProps {
   isOpen: boolean;
@@ -32,6 +35,8 @@ export default function GuildsDrawer({ isOpen, onClose, onShowGuildEvents }: Gui
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: '', slug: '', description: '', color: '#1D9E75' });
   const [busy, setBusy] = useState(false);
+  const [recap, setRecap] = useState<Scene[]>([]);
+  const [viewerScenes, setViewerScenes] = useState<Scene[] | null>(null);
 
   const authHeaders = useCallback(
     () => ({ 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }),
@@ -67,6 +72,7 @@ export default function GuildsDrawer({ isOpen, onClose, onShowGuildEvents }: Gui
 
   const openGuild = async (g: Guild) => {
     setDetail(null);
+    setRecap([]);
     try {
       const res = await fetch(`/api/guilds/${g.slug}`);
       const data = await res.json();
@@ -74,6 +80,15 @@ export default function GuildsDrawer({ isOpen, onClose, onShowGuildEvents }: Gui
       else toast.show(data.error ?? 'Could not open guild', 'error');
     } catch {
       toast.show('Network error', 'error');
+    }
+    // Auto-compiled Scenes recap (v4 P4) — top-reacted Scenes from this
+    // guild's events in the last 30 days. Needs a session (Scenes are
+    // read = logged-in users only), so it silently no-ops when logged out.
+    if (token) {
+      fetch(`/api/scenes/recap?guild_id=${g.id}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((d) => setRecap(d.recap ?? []))
+        .catch(() => setRecap([]));
     }
   };
 
@@ -365,6 +380,29 @@ export default function GuildsDrawer({ isOpen, onClose, onShowGuildEvents }: Gui
               </div>
             </div>
 
+            {/* Scenes recap (v4 P4) — auto-compiled, top-reacted, kept 30 days */}
+            {recap.length > 0 && (
+              <div className="px-4 mt-5">
+                <h3 className="text-xs font-semibold text-ink/50 uppercase tracking-wide mb-2">{SCENES.recapTitle}</h3>
+                <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                  {recap.map((s, i) => (
+                    <button key={s.id} onClick={() => setViewerScenes(recap.slice(i))} className="flex-none w-16 h-16 rounded-lg overflow-hidden border border-hairline relative">
+                      {s.kind === 'video' ? (
+                        // eslint-disable-next-line jsx-a11y/media-has-caption
+                        <video src={s.url} className="w-full h-full object-cover" muted />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={s.url} alt="" className="w-full h-full object-cover" />
+                      )}
+                      <span className="absolute bottom-0.5 right-0.5 flex items-center gap-0.5">
+                        <AvatarComposite config={s.profiles?.avatar_config} size={24} fallbackInitial={s.profiles?.display_name?.[0] ?? '?'} className="ring-2 ring-white" />
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Events */}
             {detail.events.length > 0 && (
               <div className="px-4 mt-5 pb-6">
@@ -394,6 +432,14 @@ export default function GuildsDrawer({ isOpen, onClose, onShowGuildEvents }: Gui
           </div>
         )}
       </div>
+
+      {viewerScenes && (
+        <SceneViewer
+          scenes={viewerScenes}
+          onClose={() => setViewerScenes(null)}
+          onRemoved={(id) => setViewerScenes((s) => s?.filter((x) => x.id !== id) ?? null)}
+        />
+      )}
     </>
   );
 }

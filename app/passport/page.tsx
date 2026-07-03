@@ -8,13 +8,11 @@ import { formatEventTime } from '@/lib/utils';
 import { PASSPORT_PAGE } from '@/lib/copy';
 import type { Checkin } from '@/lib/types';
 import Dock from '@/components/Dock';
-import { useToast } from '@/lib/toast';
 import AvatarComposite from '@/components/AvatarComposite';
 
 export default function PassportPage() {
   const { token, profile, address, login } = useAuth();
   const router = useRouter();
-  const toast = useToast();
   const [stamps, setStamps] = useState<Checkin[] | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -122,7 +120,7 @@ export default function PassportPage() {
         active="profile"
         liveCount={0}
         hasUnreadChat={false}
-        onScenes={() => toast.show('Scenes are coming soon — check back after you check in somewhere.')}
+        onScenes={() => router.push('/?open=scenes')}
         onGuilds={() => router.push('/?open=guilds')}
         onMapOrb={() => router.push('/')}
         onChat={() => router.push('/?open=chat')}

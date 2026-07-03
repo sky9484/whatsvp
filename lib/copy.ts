@@ -168,6 +168,22 @@ export const REGISTER = {
   mailFallbackTitle: "Save this link — it's how you'll claim your Passport later:",
 } as const;
 
+// ── Scenes (v4 P4) ───────────────────────────────────────────────────────────
+export const SCENES = {
+  addCta: 'Add a Scene',
+  cameraLockedTitle: 'Check in to unlock the camera',
+  cameraLockedBody: 'Scenes are proof you’re actually here — check in first.',
+  videoTooLong: 'Keep it to 15 seconds or under.',
+  fileTooLarge: 'That file is too large — try a shorter clip or a photo.',
+  limitReached: 'You’ve posted the max Scenes for this event today.',
+  emptyTab: 'No Scenes yet — check in somewhere to start one.',
+  reportCta: 'Report',
+  reportedToast: 'Reported — thanks for flagging it.',
+  removedToast: 'Scene removed.',
+  recapTitle: 'Recap',
+  recapEmpty: 'No Scenes made it into the recap yet.',
+} as const;
+
 // ── Settings → External collectible avatar (opt-in, advanced) ──────────────────
 export const SETTINGS_EXTERNAL_AVATAR = {
   title: 'External collectible avatar',

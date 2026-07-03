@@ -8,6 +8,7 @@ import { useUnreadRooms } from '@/lib/useUnread';
 import type { RoomRef } from '@/lib/useRoom';
 import type { EventRoom, EventPhoto, RawEvent } from '@/lib/types';
 import RoomView from './RoomView';
+import SceneCapture from '../SceneCapture';
 
 interface EventRoomsProps {
   supabase: SupabaseClient | null;
@@ -47,6 +48,11 @@ export default function EventRooms({ supabase, embedded = false, onOpenChange }:
   const [active, setActive] = useState<RoomWithEvent | null>(null);
   const [photos, setPhotos] = useState<EventPhoto[]>([]);
   const [uploading, setUploading] = useState(false);
+  // Scenes' camera icon (v4 P4) only appears in the composer when the
+  // caller is actually checked in to this event — the room's own
+  // live/read-only phase isn't the same gate.
+  const [checkedIn, setCheckedIn] = useState(false);
+  const [showSceneCapture, setShowSceneCapture] = useState(false);
 
   useEffect(() => {
     onOpenChange?.(Boolean(active));
@@ -81,6 +87,17 @@ export default function EventRooms({ supabase, embedded = false, onOpenChange }:
   const openRoom = (r: RoomWithEvent) => {
     setActive(r);
     void loadPhotos(r.id);
+    if (supabase && profile) {
+      supabase
+        .from('checkins')
+        .select('id')
+        .eq('event_id', r.event_id)
+        .eq('profile_id', profile.id)
+        .maybeSingle()
+        .then(({ data }) => setCheckedIn(Boolean(data)));
+    } else {
+      setCheckedIn(false);
+    }
   };
 
   const uploadPhoto = async (file: File) => {
@@ -133,7 +150,11 @@ export default function EventRooms({ supabase, embedded = false, onOpenChange }:
             photos={photos.slice(0, 12)}
             onUploadPhoto={phase === 'live' ? uploadPhoto : undefined}
             uploadingPhoto={uploading}
+            onAddScene={checkedIn ? () => setShowSceneCapture(true) : undefined}
           />
+        )}
+        {showSceneCapture && (
+          <SceneCapture eventId={active.event_id} onClose={() => setShowSceneCapture(false)} onCreated={() => setShowSceneCapture(false)} />
         )}
       </div>
     );

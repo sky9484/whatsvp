@@ -4,15 +4,13 @@
  * The Dock (v4 P1) — mobile bottom nav, replaces TabBar.tsx. Five items:
  * Scenes · Guilds · [map orb] · Chat · Profile. The map orb is the product's
  * heartbeat (per the brief) — a raised circle with a live-count ring, not
- * just another tab icon. "Scenes" has no backing feature yet (that's v4 P4)
- * — its tap handler shows an honest "coming soon" toast rather than a dead
- * or faked destination.
+ * just another tab icon. Scenes opened ScenesDrawer.tsx once v4 P4 shipped.
  */
 
 const MAX_RING_SEGMENTS = 12;
 const RING_R = 30;
 
-export type DockActive = 'guilds' | 'chat' | 'profile' | null;
+export type DockActive = 'guilds' | 'chat' | 'profile' | 'scenes' | null;
 
 interface DockProps {
   active: DockActive;
@@ -32,7 +30,7 @@ export default function Dock({ active, liveCount, hasUnreadChat, onScenes, onGui
                  glass rounded-[22px] shadow-lg flex items-stretch justify-around px-1"
       aria-label="Primary"
     >
-      <DockItem label="Scenes" active={false} onClick={onScenes}>
+      <DockItem label="Scenes" active={active === 'scenes'} onClick={onScenes}>
         <SceneIcon />
       </DockItem>
       <DockItem label="Guilds" active={active === 'guilds'} onClick={onGuilds}>

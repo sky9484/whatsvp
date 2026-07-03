@@ -13,6 +13,7 @@ import OrganizeDrawer from './OrganizeDrawer';
 import SettingsDrawer from './SettingsDrawer';
 import ChatDrawer from './ChatDrawer';
 import GuildsDrawer from './GuildsDrawer';
+import ScenesDrawer from './ScenesDrawer';
 import type { Guild } from '@/lib/types';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -20,7 +21,6 @@ import { createClient, createAuthedClient } from '@/lib/supabase/client';
 import { withStatus, filterEvents, segmentCounts, getEventStatus, formatEventTime } from '@/lib/utils';
 import type { Event, EventFilter, RawEvent } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
-import { useToast } from '@/lib/toast';
 import { useHasAnyUnread } from '@/lib/useUnread';
 import { resolveLandmark } from '@/lib/buildings';
 import { getDemoEvents } from '@/lib/demoEvents';
@@ -37,7 +37,7 @@ const Map = dynamic(() => import('./Map'), {
   ),
 });
 
-type DrawerKey = 'organize' | 'settings' | 'chat' | 'guilds' | null;
+type DrawerKey = 'organize' | 'settings' | 'chat' | 'guilds' | 'scenes' | null;
 
 export default function MapContainer() {
   const [allEvents, setAllEvents] = useState<Event[]>([]);
@@ -50,26 +50,27 @@ export default function MapContainer() {
   const [guildFilter, setGuildFilter] = useState<Guild | null>(null);
   const [geolocateTrigger, setGeolocateTrigger] = useState(0);
   const [buildingFocus, setBuildingFocus] = useState<BuildingFocus | null>(null);
+  const [flyToTarget, setFlyToTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [demoMode, setDemoMode] = useState(false);
   const [panSignal, setPanSignal] = useState(0);
   const [chatRefreshKey, setChatRefreshKey] = useState(0);
 
   const { address, login, token, profile } = useAuth();
-  const toast = useToast();
 
   // One authed client per session token — used only for the aggregate unread
   // check below (the map's own event reads use the plain anon client further down).
   const authedSupabase = useMemo(() => createAuthedClient(token), [token]);
   const hasUnreadChat = useHasAnyUnread(authedSupabase, profile?.id ?? null, chatRefreshKey);
 
-  // Honor ?open=guilds|chat|settings from a cross-page nav (the Passport page's
-  // Dock links back here since these are drawers-over-the-map, not routes),
-  // then clean the URL. Read via window.location rather than useSearchParams
-  // so this stays a plain one-shot effect with no Suspense boundary required.
+  // Honor ?open=guilds|chat|settings|scenes from a cross-page nav (the Passport
+  // page's Dock links back here since these are drawers-over-the-map, not
+  // routes), then clean the URL. Read via window.location rather than
+  // useSearchParams so this stays a plain one-shot effect with no Suspense
+  // boundary required.
   useEffect(() => {
     const open = new URLSearchParams(window.location.search).get('open');
-    if (open === 'guilds' || open === 'chat' || open === 'settings') {
+    if (open === 'guilds' || open === 'chat' || open === 'settings' || open === 'scenes') {
       setActiveDrawer(open);
       window.history.replaceState(null, '', '/');
     }
@@ -206,11 +207,13 @@ export default function MapContainer() {
     setActiveDrawer('settings');
   }, [address, login]);
 
-  // Scenes (v4 P4) isn't built yet — the dock tab exists per the v4 nav spec,
-  // but taps show an honest "coming soon" rather than a dead or faked destination.
   const handleScenes = useCallback(() => {
-    toast.show('Scenes are coming soon — check back after you check in somewhere.');
-  }, [toast]);
+    if (!address) {
+      login();
+      return;
+    }
+    setActiveDrawer('scenes');
+  }, [address, login]);
 
   const closeDrawer = useCallback(() => {
     setActiveDrawer((prev) => {
@@ -226,7 +229,12 @@ export default function MapContainer() {
     else setGeolocateTrigger((n) => n + 1);
   }, [activeDrawer, closeDrawer]);
 
-  const dockActive: DockActive = activeDrawer === 'guilds' ? 'guilds' : activeDrawer === 'chat' ? 'chat' : activeDrawer === 'settings' ? 'profile' : null;
+  const dockActive: DockActive =
+    activeDrawer === 'guilds' ? 'guilds'
+    : activeDrawer === 'chat' ? 'chat'
+    : activeDrawer === 'settings' ? 'profile'
+    : activeDrawer === 'scenes' ? 'scenes'
+    : null;
 
   // Shared by EventPopup (desktop) and EventSheet (mobile) — both act on
   // whichever event is currently selected/focused.
@@ -259,6 +267,7 @@ export default function MapContainer() {
         geolocateTrigger={geolocateTrigger}
         buildingFocus={buildingFocus}
         onUserPanStart={() => setPanSignal((n) => n + 1)}
+        flyToTarget={flyToTarget}
       />
 
       {/* Top header */}
@@ -417,6 +426,16 @@ export default function MapContainer() {
         isOpen={activeDrawer === 'guilds'}
         onClose={closeDrawer}
         onShowGuildEvents={handleShowGuildEvents}
+      />
+
+      {/* Scenes drawer (v4 P4) */}
+      <ScenesDrawer
+        isOpen={activeDrawer === 'scenes'}
+        onClose={closeDrawer}
+        onFlyToVenue={(lat, lng) => {
+          closeDrawer();
+          setFlyToTarget({ lat, lng });
+        }}
       />
     </div>
   );

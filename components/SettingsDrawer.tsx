@@ -26,6 +26,7 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
   const [copied, setCopied] = useState(false);
   const [showTopUp, setShowTopUp] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
+  const [withdrawConfirming, setWithdrawConfirming] = useState(false);
   const [withdrawAddress, setWithdrawAddress] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawBusy, setWithdrawBusy] = useState(false);
@@ -85,7 +86,20 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
     setWithdrawAmount(Math.max(0, parseFloat(balance) - GAS_BUFFER_SUI).toFixed(4));
   };
 
-  const submitWithdraw = () => {
+  // UI-level gates only — withdraw is a self-custodial, client-signed transfer
+  // with no server relay, so there's no point in the flow where a backend can
+  // block it from executing on-chain (§5.5's "caps" are enforceable for
+  // sponsored/relayed transfers, not this one). This just keeps a brand-new
+  // session from being an instant drain target the moment it's created, and
+  // ties into the Passport identity check the same way §5.5 specifies for
+  // the money system generally. When Move isn't published yet, Passport can't
+  // be minted by anyone, so that half of the gate is skipped rather than
+  // permanently locking a feature that predates the Move package.
+  const passportOk = !identity?.configured || Boolean(identity?.passport);
+  const accountAgeOk = profile ? Date.now() - new Date(profile.created_at).getTime() > 24 * 60 * 60 * 1000 : false;
+  const withdrawUnlocked = accountAgeOk && passportOk;
+
+  const reviewWithdraw = () => {
     setWithdrawError('');
     if (!isValidSuiAddress(withdrawAddress)) {
       setWithdrawError("That doesn't look like a valid Sui address.");
@@ -96,12 +110,28 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
       setWithdrawError('Enter an amount greater than 0.');
       return;
     }
+    setWithdrawConfirming(true);
+  };
+
+  const confirmWithdraw = () => {
     setWithdrawBusy(true);
     signAndExecute(
       { transaction: buildSendSuiTx(withdrawAddress, withdrawAmount) },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
+          // Best-effort server audit log (§5.2 "history integrity") — never
+          // blocks or undoes the transfer, which already executed; the server
+          // independently re-derives recipient + amount from the chain by
+          // digest rather than trusting what we post here.
+          if (token) {
+            fetch('/api/withdraw/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ digest: result.digest }),
+            }).catch(() => {});
+          }
           setWithdrawBusy(false);
+          setWithdrawConfirming(false);
           setShowWithdraw(false);
           setWithdrawAddress('');
           setWithdrawAmount('');
@@ -264,13 +294,64 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
                   correct way to move value out. */}
               <div className="mt-3 pt-3 border-t border-hairline">
                 {!showWithdraw ? (
-                  <button
-                    onClick={() => setShowWithdraw(true)}
-                    disabled={!balance || balance === '0' || balance === '—'}
-                    className="w-full py-2 rounded-lg border border-hairline text-sm text-ink hover:bg-ink/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Withdraw to another wallet
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setShowWithdraw(true)}
+                      disabled={!balance || balance === '0' || balance === '—' || !withdrawUnlocked}
+                      className="w-full py-2 rounded-lg border border-hairline text-sm text-ink hover:bg-ink/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Withdraw to another wallet
+                    </button>
+                    {balance && balance !== '0' && balance !== '—' && !withdrawUnlocked && (
+                      <p className="mt-1.5 text-[11px] text-ink/40 text-center">
+                        {!accountAgeOk
+                          ? 'Unlocks 24h after your account is created.'
+                          : 'Unlocks once your Passport is set up.'}
+                      </p>
+                    )}
+                  </>
+                ) : withdrawConfirming ? (
+                  <div className="space-y-2">
+                    <div className="rounded-lg border border-hairline p-3 space-y-2">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-xs text-ink/50">Sending</span>
+                        <span className="text-sm font-semibold text-ink">{withdrawAmount} SUI</span>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-xs text-ink/50 shrink-0">To</span>
+                        <code className="text-xs text-ink font-mono break-all text-right">{withdrawAddress}</code>
+                      </div>
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-xs text-ink/50">Network</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-ink/10 text-ink/50 uppercase">
+                          {SUI_NETWORK}
+                        </span>
+                      </div>
+                    </div>
+                    {withdrawError && <p className="text-xs text-live">{withdrawError}</p>}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setWithdrawConfirming(false);
+                          setWithdrawError('');
+                        }}
+                        disabled={withdrawBusy}
+                        className="flex-1 py-2 rounded-lg border border-hairline text-sm text-ink hover:bg-ink/5 disabled:opacity-50"
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={confirmWithdraw}
+                        disabled={withdrawBusy}
+                        className="flex-1 py-2 rounded-lg bg-teal text-white text-sm font-semibold disabled:opacity-50"
+                      >
+                        {withdrawBusy ? 'Sending…' : 'Confirm & send'}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-ink/40 text-center">
+                      This sends real funds on {SUI_NETWORK}. Double-check the address — it can&apos;t be undone.
+                    </p>
+                  </div>
                 ) : (
                   <div className="space-y-2">
                     <input
@@ -306,16 +387,13 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
                         Cancel
                       </button>
                       <button
-                        onClick={submitWithdraw}
-                        disabled={withdrawBusy || !withdrawAddress || !withdrawAmount}
+                        onClick={reviewWithdraw}
+                        disabled={!withdrawAddress || !withdrawAmount}
                         className="flex-1 py-2 rounded-lg bg-teal text-white text-sm font-semibold disabled:opacity-50"
                       >
-                        {withdrawBusy ? 'Sending…' : 'Send'}
+                        Review
                       </button>
                     </div>
-                    <p className="text-[11px] text-ink/40 text-center">
-                      This sends real funds on {SUI_NETWORK}. Double-check the address — it can&apos;t be undone.
-                    </p>
                   </div>
                 )}
               </div>

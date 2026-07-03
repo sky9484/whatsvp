@@ -1,13 +1,18 @@
 import { NextRequest } from 'next/server';
+import { after } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireProfile } from '@/lib/apiAuth';
+import { mintGuildBadgeServerSide } from '@/lib/sui-admin';
 
 /**
  * POST /api/guilds/join — join (or leave) a guild.
  * Body: { guild_id: string, leave?: boolean }
  *
- * On join, the client then triggers an Enoki-sponsored GuildBadge mint (Upgrade 3).
- * Membership itself is recorded here idempotently.
+ * On join, fire-and-forgets a server-side GuildBadge mint via the
+ * backend-held AdminCap (pre-v4 P0 audit fix — guild.move's mint used to be
+ * client-callable with zero access control; now only the server can mint,
+ * and only after this route has already recorded real membership). Mirrors
+ * the exact pattern /api/checkin uses for Stamp minting.
  */
 export async function POST(request: NextRequest) {
   let supabase;
@@ -43,6 +48,9 @@ export async function POST(request: NextRequest) {
     return Response.json({ ok: true, joined: false });
   }
 
+  const { data: guild } = await supabase.from('guilds').select('slug').eq('id', body.guild_id).maybeSingle();
+  if (!guild) return Response.json({ error: 'Guild not found' }, { status: 404 });
+
   const { error } = await supabase
     .from('guild_members')
     .upsert(
@@ -50,5 +58,24 @@ export async function POST(request: NextRequest) {
       { onConflict: 'guild_id,profile_id', ignoreDuplicates: true }
     );
   if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  after(async () => {
+    const attempt = async () => mintGuildBadgeServerSide(me.address, guild.slug);
+    let result = await attempt();
+    if (!result.minted && result.reason !== 'not_configured') {
+      await new Promise((r) => setTimeout(r, 2000));
+      result = await attempt(); // one retry — best-effort, not a durable queue
+    }
+    if (result.minted) {
+      await supabase
+        .from('guild_members')
+        .update({ badge_minted_at: new Date().toISOString(), badge_tx_digest: result.digest })
+        .eq('guild_id', body.guild_id)
+        .eq('profile_id', me.profileId);
+    } else if (result.reason !== 'not_configured') {
+      console.warn('[guild-badge] mint failed:', result.reason);
+    }
+  });
+
   return Response.json({ ok: true, joined: true });
 }

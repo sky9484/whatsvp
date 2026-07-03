@@ -25,7 +25,12 @@ public struct Avatar has key, store {
 }
 
 /// Capability held by WhatsVP to mint new cosmetics for sale.
-public struct MintCap has key, store {
+/// AUDIT FIX (pre-v4 P0): originally had `store`, which let the sole
+/// mint-gating capability be wrapped, listed in a Kiosk, or moved via any
+/// generic store-based mechanism outside this module's control. `key`-only
+/// mirrors stamp.move's and guild.move's AdminCap — the correct shape for any
+/// capability that gates minting.
+public struct MintCap has key {
     id: UID,
 }
 
@@ -45,7 +50,7 @@ fun init(otw: COSMETICS, ctx: &mut TxContext) {
     transfer::public_share_object(policy);
     transfer::public_transfer(policy_cap, ctx.sender());
 
-    transfer::public_transfer(MintCap { id: object::new(ctx) }, ctx.sender());
+    transfer::transfer(MintCap { id: object::new(ctx) }, ctx.sender());
     transfer::public_transfer(publisher, ctx.sender());
     transfer::public_transfer(disp, ctx.sender());
 }

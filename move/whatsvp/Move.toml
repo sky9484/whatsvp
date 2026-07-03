@@ -4,7 +4,12 @@ edition = "2024.beta"
 # Publish to testnet first, then record the package ID in .env as NEXT_PUBLIC_WHATSVP_PACKAGE_ID.
 
 [dependencies]
-Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
+# AUDIT FIX (pre-v4 P0): was pinned to the moving branch ref "framework/testnet",
+# which makes builds non-reproducible (the branch tip changes over time without
+# warning). Pinned to its resolved commit SHA as of 2026-07-03
+# (`git ls-remote https://github.com/MystenLabs/sui.git refs/heads/framework/testnet`).
+# Re-resolve and bump deliberately when you want a newer framework, not silently.
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "8fc60f1fa966e90398c93beb67ad4f42992889c7" }
 
 [addresses]
 whatsvp = "0x0"

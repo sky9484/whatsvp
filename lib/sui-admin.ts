@@ -4,25 +4,34 @@ import { getSuiClient } from './sui-server';
 import { PACKAGE_ID, isMoveConfigured } from './sui-move';
 
 /**
- * Server-side Stamp minting (v3 P3). Unlike every other mint in this app —
- * Passport, GuildBadge, cosmetic Avatars, all client-signed via the Enoki
- * wallet with sponsored gas — a Stamp requires the backend's OWN keypair,
- * because minting must happen only after the server has verified a real
- * check-in. There is deliberately no client-callable path here at all; see
- * stamp.move's doc comment for why (the direct fix for the guild.move
- * access-control finding from the Move audit).
+ * Server-side minting for anything that requires the backend to have already
+ * verified something real before the mint happens — Stamps (real check-in,
+ * v3 P3) and, since the pre-v4 P0 audit fix, GuildBadges (real membership row
+ * in `guild_members`, previously ungated — see guild.move's doc comment).
+ * Unlike Passport/cosmetic Avatars (client-signed via the Enoki wallet, gas
+ * sponsored), these mints use the backend's OWN keypair because there is no
+ * user-signed transaction to gate them — the client must never be able to
+ * call these move targets directly.
  *
- * The admin address pays its own gas (a small amount of SUI funded once on
- * the operator's machine) — a backend hot-wallet pattern, not per-user Enoki
- * sponsorship, since there's no user-signed transaction to sponsor here.
+ * One backend hot-wallet address holds both AdminCaps (stamp::AdminCap and
+ * guild::AdminCap) and pays its own gas — funded once on the operator's
+ * machine, separate from per-user Enoki sponsorship.
  */
 
 const STAMP_REGISTRY_ID = process.env.STAMP_REGISTRY_ID ?? '';
 const STAMP_ADMIN_CAP_ID = process.env.STAMP_ADMIN_CAP_ID ?? '';
 const STAMP_ADMIN_PRIVATE_KEY = process.env.STAMP_ADMIN_PRIVATE_KEY ?? '';
+// Reuses the same backend signer as Stamps (STAMP_ADMIN_PRIVATE_KEY) — only
+// the object ids differ, since the guild module has its own Registry/AdminCap.
+const GUILD_REGISTRY_ID = process.env.GUILD_REGISTRY_ID ?? '';
+const GUILD_ADMIN_CAP_ID = process.env.GUILD_ADMIN_CAP_ID ?? '';
 
 export function isStampMintingConfigured(): boolean {
   return Boolean(isMoveConfigured() && STAMP_REGISTRY_ID && STAMP_ADMIN_CAP_ID && STAMP_ADMIN_PRIVATE_KEY);
+}
+
+export function isGuildBadgeMintingConfigured(): boolean {
+  return Boolean(isMoveConfigured() && GUILD_REGISTRY_ID && GUILD_ADMIN_CAP_ID && STAMP_ADMIN_PRIVATE_KEY);
 }
 
 let cachedKeypair: Ed25519Keypair | null = null;
@@ -58,6 +67,49 @@ export async function mintStampServerSide(
         tx.pure.address(recipient),
         tx.pure.string(eventId),
         tx.pure.string(eventTitle),
+      ],
+    });
+
+    const client = getSuiClient();
+    const result = await client.signAndExecuteTransaction({
+      transaction: tx,
+      signer: getAdminKeypair(),
+      options: { showEffects: true },
+    });
+
+    if (result.effects?.status.status === 'success') {
+      return { minted: true, digest: result.digest };
+    }
+    return { minted: false, reason: result.effects?.status.error ?? 'tx_failed' };
+  } catch (e) {
+    return { minted: false, reason: e instanceof Error ? e.message : 'unknown_error' };
+  }
+}
+
+export type GuildBadgeMintResult = { minted: true; digest: string } | { minted: false; reason: string };
+
+/**
+ * Mint a GuildBadge to `recipient` for `guildSlug`. The caller MUST have
+ * already recorded real membership (a `guild_members` row) before calling
+ * this — see /api/guilds/join, which is the only caller. This is the pre-v4
+ * P0 audit fix: guild.move's `mint` used to be a plain public function with
+ * no access control at all; it's now gated the same way as Stamps.
+ */
+export async function mintGuildBadgeServerSide(
+  recipient: string,
+  guildSlug: string
+): Promise<GuildBadgeMintResult> {
+  if (!isGuildBadgeMintingConfigured()) return { minted: false, reason: 'not_configured' };
+
+  try {
+    const tx = new Transaction();
+    tx.moveCall({
+      target: `${PACKAGE_ID}::guild::mint_to`,
+      arguments: [
+        tx.object(GUILD_ADMIN_CAP_ID),
+        tx.object(GUILD_REGISTRY_ID),
+        tx.pure.address(recipient),
+        tx.pure.string(guildSlug),
       ],
     });
 

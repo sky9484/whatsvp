@@ -33,12 +33,7 @@ export function buildMintPassportTx(displayName: string): Transaction {
   return tx;
 }
 
-/** Soulbound GuildBadge mint, called on guild join. */
-export function buildMintGuildBadgeTx(guildSlug: string): Transaction {
-  const tx = new Transaction();
-  tx.moveCall({
-    target: `${PACKAGE_ID}::guild::mint`,
-    arguments: [tx.pure.string(guildSlug)],
-  });
-  return tx;
-}
+// GuildBadge minting is server-side only (lib/sui-admin.ts mintGuildBadgeServerSide,
+// called from /api/guilds/join) — there is deliberately no client-callable
+// transaction builder for it. See guild.move's doc comment: the previous
+// client-callable `mint` had zero access control (pre-v4 P0 audit fix).

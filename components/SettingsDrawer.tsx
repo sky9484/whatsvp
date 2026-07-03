@@ -7,6 +7,9 @@ import { useSuiClient, useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 import { useAuth } from '@/lib/auth';
 import { shortenAddress, formatSui, buildSendSuiTx, isValidSuiAddress, SUI_NETWORK } from '@/lib/sui';
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush, type PushState } from '@/lib/pwa';
+import { useAreaPresence } from '@/lib/usePresence';
+import AvatarComposite from './AvatarComposite';
+import AvatarBuilder from './AvatarBuilder';
 
 // viem (EVM wallet + chain defs) is only needed by this opt-in, power-user
 // feature — load it on demand instead of bundling it into every page load.
@@ -21,6 +24,8 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
   const { address, profile, logout, token } = useAuth();
   const suiClient = useSuiClient();
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
+  const presence = useAreaPresence();
+  const [showAvatarBuilder, setShowAvatarBuilder] = useState(false);
 
   const [balance, setBalance] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -461,6 +466,51 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
               </Link>
             </div>
 
+            {/* Your look — the free layered avatar (v4 P3), separate from the
+                on-chain tradable cosmetics above */}
+            <div className="rounded-xl border border-hairline p-3.5 flex items-center gap-3">
+              <AvatarComposite config={profile?.avatar_config} size={48} fallbackInitial={profile?.display_name?.[0] ?? '?'} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-ink">Your look</p>
+                <p className="text-xs text-ink/50">Free — build it in under a minute.</p>
+              </div>
+              <button
+                onClick={() => setShowAvatarBuilder(true)}
+                className="px-3 py-1.5 rounded-full border border-hairline text-xs font-medium text-ink hover:bg-ink/5 transition-colors flex-none"
+              >
+                Edit
+              </button>
+            </div>
+
+            {/* Area presence (v4 P3 Level 2) — ghost by default, mutuals-only, coarse */}
+            <div className="rounded-xl border border-hairline p-3.5">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={presence.enabled}
+                  disabled={presence.busy || !presence.loaded}
+                  onChange={(e) => presence.toggle(e.target.checked)}
+                />
+                <span className="flex-1">
+                  <span className="block text-sm font-medium text-ink">Show my area to mutuals</span>
+                  <span className="block text-xs text-ink/50">Off by default. Only mutuals see roughly which area you're in — never a precise spot, never strangers.</span>
+                </span>
+              </label>
+              {presence.enabled && presence.nearby.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-hairline">
+                  <p className="text-xs font-medium text-ink/60 mb-1.5">Mutuals in your area</p>
+                  <div className="flex flex-wrap gap-2">
+                    {presence.nearby.map((m) => (
+                      <span key={m.profile_id} className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-ink/[0.05]">
+                        <AvatarComposite config={m.avatar_config} size={24} fallbackInitial={m.display_name[0]} />
+                        <span className="text-xs text-ink">{m.display_name}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Notifications — web-push, opt-in */}
             {pushState && pushState !== 'unsupported' && (
               <div className="rounded-xl border border-hairline p-3.5">
@@ -551,6 +601,8 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
           </div>
         )}
       </div>
+
+      <AvatarBuilder isOpen={showAvatarBuilder} onClose={() => setShowAvatarBuilder(false)} />
     </>
   );
 }

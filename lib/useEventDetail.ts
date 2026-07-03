@@ -1,11 +1,18 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { Event, TransitInfo } from './types';
+import type { Event, TransitInfo, AvatarConfig } from './types';
 import { useAuth } from './auth';
-import { createAuthedClient } from './supabase/client';
+import { createClient, createAuthedClient } from './supabase/client';
 import { resolveLandmark } from './buildings';
 import { isCheckinWindowOpen } from './utils';
+
+export interface HereNowAttendee {
+  profile_id: string;
+  display_name: string;
+  avatar_url?: string | null;
+  avatar_config?: AvatarConfig | null;
+}
 
 /**
  * Shared state + actions for an event's detail view — transit, share, check-in,
@@ -25,7 +32,12 @@ export function useEventDetail(event: Event, onBuildingImage?: (url: string) => 
   const [checkedIn, setCheckedIn] = useState(false);
   const [checkinBusy, setCheckinBusy] = useState(false);
   const [checkinError, setCheckinError] = useState('');
+  // Event presence (v4 P3 Level 1) — auto-on at check-in, off at "Leave" or event end.
+  const [presentNow, setPresentNow] = useState(false);
+  const [leavingPresence, setLeavingPresence] = useState(false);
+  const [hereNow, setHereNow] = useState<{ count: number; attendees: HereNowAttendee[] }>({ count: 0, attendees: [] });
 
+  const anon = useMemo(() => createClient(), []);
   const authed = useMemo(() => createAuthedClient(token), [token]);
 
   const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${event.lat},${event.lng}&travelmode=transit`;
@@ -47,20 +59,69 @@ export function useEventDetail(event: Event, onBuildingImage?: (url: string) => 
     if (authed && profile) {
       authed
         .from('checkins')
-        .select('id')
+        .select('id, left_at')
         .eq('event_id', event.id)
         .eq('profile_id', profile.id)
         .maybeSingle()
         .then(({ data }) => {
-          if (!cancelled) setCheckedIn(Boolean(data));
+          if (cancelled) return;
+          setCheckedIn(Boolean(data));
+          setPresentNow(Boolean(data) && !data?.left_at);
         });
     } else {
       setCheckedIn(false);
+      setPresentNow(false);
     }
     return () => {
       cancelled = true;
     };
   }, [event.id, authed, profile]);
+
+  // Event presence ("here now") — anyone (even logged out) can see who's
+  // currently checked in and hasn't left; RLS scopes this to left_at IS NULL
+  // rows only (010_avatars_presence.sql), never full attendance history.
+  useEffect(() => {
+    let cancelled = false;
+    const client = authed ?? anon;
+    if (!client) return;
+    client
+      .from('checkins')
+      .select('profile_id, profiles(display_name, avatar_url, avatar_config)')
+      .eq('event_id', event.id)
+      .is('left_at', null)
+      .then(({ data }) => {
+        if (cancelled) return;
+        const attendees: HereNowAttendee[] = (data ?? []).map((r) => {
+          const p = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+          return {
+            profile_id: r.profile_id,
+            display_name: p?.display_name ?? 'Someone',
+            avatar_url: p?.avatar_url,
+            avatar_config: p?.avatar_config,
+          };
+        });
+        setHereNow({ count: attendees.length, attendees });
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Re-fetch whenever my own presence changes (just checked in / just left).
+  }, [event.id, authed, anon, presentNow]);
+
+  const leavePresence = async () => {
+    if (!authed || !profile) return;
+    setLeavingPresence(true);
+    try {
+      const { error: err } = await authed
+        .from('checkins')
+        .update({ left_at: new Date().toISOString() })
+        .eq('event_id', event.id)
+        .eq('profile_id', profile.id);
+      if (!err) setPresentNow(false);
+    } finally {
+      setLeavingPresence(false);
+    }
+  };
 
   const checkinOpen = isCheckinWindowOpen(event) && (event.checkin_methods?.includes('geofence') ?? true);
 
@@ -127,6 +188,7 @@ export function useEventDetail(event: Event, onBuildingImage?: (url: string) => 
       const data = await res.json();
       if (!res.ok && !data.already) throw new Error(data.error ?? 'Check-in failed');
       setCheckedIn(true);
+      setPresentNow(true);
     } catch (e) {
       setCheckinError(e instanceof Error ? e.message : 'Check-in failed');
     } finally {
@@ -161,6 +223,10 @@ export function useEventDetail(event: Event, onBuildingImage?: (url: string) => 
     checkinBusy,
     checkinError,
     checkinOpen,
+    presentNow,
+    leavingPresence,
+    hereNow,
+    leavePresence,
     googleMapsUrl,
     wazeUrl,
     calendarUrl,

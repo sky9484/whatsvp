@@ -9,6 +9,7 @@ import { PASSPORT_PAGE } from '@/lib/copy';
 import type { Checkin } from '@/lib/types';
 import Dock from '@/components/Dock';
 import { useToast } from '@/lib/toast';
+import AvatarComposite from '@/components/AvatarComposite';
 
 export default function PassportPage() {
   const { token, profile, address, login } = useAuth();
@@ -58,17 +59,13 @@ export default function PassportPage() {
           <>
             {/* Identity card */}
             <div className="rounded-2xl border border-hairline bg-surface p-5 flex items-center gap-4">
-              <span className="w-14 h-14 rounded-full bg-teal text-paper text-xl font-bold flex items-center justify-center flex-none overflow-hidden">
-                {profile?.pfp_verified_at && profile?.pfp_image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={profile.pfp_image_url} alt="" className="w-full h-full object-cover" />
-                ) : profile?.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  profile?.display_name?.[0]?.toUpperCase() ?? '·'
-                )}
-              </span>
+              <AvatarComposite
+                config={profile?.avatar_config}
+                externalUrl={profile?.pfp_verified_at && profile?.pfp_image_url ? profile.pfp_image_url : null}
+                plainUrl={profile?.avatar_url}
+                fallbackInitial={profile?.display_name?.[0] ?? '·'}
+                size={48}
+              />
               <div className="min-w-0">
                 <p className="text-[17px] font-semibold text-ink truncate">{profile?.display_name ?? 'Signing in…'}</p>
                 <p className="text-sm text-sub">

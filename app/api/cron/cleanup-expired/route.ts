@@ -41,5 +41,11 @@ export async function GET(request: NextRequest) {
     .not('expires_at', 'is', null)
     .lt('expires_at', now);
 
-  return Response.json({ photosDeleted, messagesDeleted: messagesDeleted ?? 0 });
+  // Area presence (v4 P3) has a 60-minute TTL — the client only ever reads
+  // recent rows (lib/usePresence.ts filters by updated_at), but rows should
+  // still be deleted for storage hygiene rather than accumulating forever.
+  const staleCutoff = new Date(Date.now() - 60 * 60_000).toISOString();
+  const { count: presenceDeleted } = await supabase.from('presence').delete({ count: 'exact' }).lt('updated_at', staleCutoff);
+
+  return Response.json({ photosDeleted, messagesDeleted: messagesDeleted ?? 0, presenceDeleted: presenceDeleted ?? 0 });
 }

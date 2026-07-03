@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { TAGLINE } from '@/lib/copy';
+import AvatarComposite from './AvatarComposite';
 
 interface HeaderProps {
   onGuilds: () => void;
@@ -82,26 +83,13 @@ export default function Header({ onGuilds, onOrganize, onChat, onOpenSettings }:
                        bg-ink/[0.06] hover:bg-ink/10 transition-colors"
             aria-label="Open settings"
           >
-            {profile?.pfp_verified_at && profile?.pfp_image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={profile.pfp_image_url}
-                alt=""
-                title="Verified collectible avatar"
-                className="w-7 h-7 rounded-full object-cover ring-2 ring-teal"
-              />
-            ) : profile?.avatar_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={profile.avatar_url}
-                alt=""
-                className="w-7 h-7 rounded-full object-cover"
-              />
-            ) : (
-              <span className="w-7 h-7 rounded-full bg-teal text-paper text-xs font-semibold flex items-center justify-center">
-                {initial}
-              </span>
-            )}
+            <AvatarComposite
+              config={profile?.avatar_config}
+              externalUrl={profile?.pfp_verified_at && profile?.pfp_image_url ? profile.pfp_image_url : null}
+              plainUrl={profile?.avatar_url}
+              fallbackInitial={initial}
+              size={24}
+            />
             <span className="text-sm text-ink max-w-[120px] truncate">
               {status === 'authing'
                 ? 'Signing in…'

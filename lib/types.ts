@@ -46,6 +46,21 @@ export interface Profile {
   pfp_token_id?: string | null;
   pfp_image_url?: string | null;
   pfp_verified_at?: string | null;
+  /** Layered avatar equip state (v4 P3) — {slot: item_id}. Never written directly by the client. */
+  avatar_config?: AvatarConfig;
+}
+
+// ── Avatars (v4 P3) ──────────────────────────────────────────────────────────
+export type AvatarSlot = 'base' | 'skin' | 'hair' | 'top' | 'accessory' | 'bg';
+export type AvatarConfig = Partial<Record<AvatarSlot, string>>;
+
+export interface AvatarItem {
+  id: string;
+  slot: AvatarSlot;
+  name: string;
+  svg_path: string;
+  premium: boolean;
+  kiosk_type?: string | null;
 }
 
 export interface TransitInfo {
@@ -170,9 +185,19 @@ export interface Checkin {
   created_at: string;
   stamp_minted_at?: string | null;
   stamp_tx_digest?: string | null;
+  /** Set when the attendee taps "Leave" — event presence (v4 P3) ends here or at event end. */
+  left_at?: string | null;
   // Optionally joined for display:
   events?: Pick<RawEvent, 'id' | 'title' | 'venue_name' | 'starts_at' | 'ends_at' | 'cover_url'> | null;
-  profiles?: { display_name: string; avatar_url?: string | null } | null;
+  profiles?: { display_name: string; avatar_url?: string | null; avatar_config?: AvatarConfig | null } | null;
+}
+
+/** Coarse, opt-in area presence (v4 P3) — geohash-6 only, mutuals-only, never a precise point. */
+export interface PresenceRow {
+  profile_id: string;
+  geohash6: string | null;
+  updated_at: string;
+  profiles?: { display_name: string; avatar_url?: string | null; avatar_config?: AvatarConfig | null } | null;
 }
 
 // ── Registration 2.0 (v4 P2) ────────────────────────────────────────────────

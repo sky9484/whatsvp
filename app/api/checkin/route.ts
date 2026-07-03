@@ -9,6 +9,15 @@ import { distanceMetres, isCheckinWindowOpen } from '@/lib/utils';
 
 const GEOFENCE_RADIUS_M = 300;
 
+// v3 P3's Passport milestones (5/10/25 stamps) also unlock a premium avatar
+// item (v4 P3) — granted here via `granted_items`, never purchasable. Seeded
+// in 010_avatars_presence.sql; keep these ids in sync with that seed data.
+const MILESTONE_ITEMS: Record<number, string> = {
+  5: 'acc_medal',
+  10: 'bg_gold',
+  25: 'acc_crown',
+};
+
 // Best-effort, per-warm-instance-only rate limit. Not a durable/shared store —
 // the real defense against duplicate check-ins is the DB UNIQUE constraint;
 // this just guards against a runaway client retry loop.
@@ -118,6 +127,18 @@ export async function POST(request: NextRequest) {
         .eq('id', checkin.id);
     } else if (result.reason !== 'not_configured') {
       console.warn('[checkin] stamp mint failed:', result.reason);
+    }
+
+    const { count } = await supabase
+      .from('checkins')
+      .select('*', { count: 'exact', head: true })
+      .eq('profile_id', me.profileId);
+    const milestoneItem = count !== null ? MILESTONE_ITEMS[count] : undefined;
+    if (milestoneItem) {
+      // UNIQUE(profile_id, item_id) makes this idempotent if the cron/retry ever double-fires.
+      await supabase
+        .from('granted_items')
+        .upsert({ profile_id: me.profileId, item_id: milestoneItem, reason: `milestone_${count}` }, { onConflict: 'profile_id,item_id', ignoreDuplicates: true });
     }
   });
 

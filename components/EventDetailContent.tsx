@@ -6,6 +6,7 @@ import { formatEventTime, whatsAppShareUrl } from '@/lib/utils';
 import { useEventDetail } from '@/lib/useEventDetail';
 import { useRegistration } from '@/lib/useRegistration';
 import RegisterModal from './RegisterModal';
+import AvatarComposite from './AvatarComposite';
 import { REGISTER } from '@/lib/copy';
 
 interface EventDetailContentProps {
@@ -44,6 +45,10 @@ export default function EventDetailContent({
     checkinBusy,
     checkinError,
     checkinOpen,
+    presentNow,
+    leavingPresence,
+    hereNow,
+    leavePresence,
     googleMapsUrl,
     wazeUrl,
     calendarUrl,
@@ -224,6 +229,31 @@ export default function EventDetailContent({
               </button>
             )}
             {checkinError && <p className="mt-1 text-xs text-live text-center">{checkinError}</p>}
+          </div>
+        )}
+
+        {/* Event presence (v4 P3 Level 1) — auto-on at check-in, the brief's
+            one deliberately public-ish signal. Only rendered when someone's
+            actually here; never "Be the first!" */}
+        {hereNow.count > 0 && (
+          <div className="mt-2 flex items-center gap-2">
+            <span className="flex -space-x-2 flex-none">
+              {hereNow.attendees.slice(0, 5).map((a) => (
+                <AvatarComposite key={a.profile_id} config={a.avatar_config} size={24} fallbackInitial={a.display_name[0]} className="ring-2 ring-paper" />
+              ))}
+            </span>
+            <span className="text-xs text-ink/60 min-w-0 truncate flex-1">
+              {hereNow.count} here now
+            </span>
+            {presentNow && (
+              <button
+                onClick={leavePresence}
+                disabled={leavingPresence}
+                className="text-xs font-medium text-ink/40 hover:text-ink/70 disabled:opacity-50 flex-none"
+              >
+                {leavingPresence ? 'Leaving…' : 'Leave'}
+              </button>
+            )}
           </div>
         )}
 

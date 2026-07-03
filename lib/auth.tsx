@@ -37,6 +37,9 @@ interface AuthContextValue {
   canLogin: boolean;
   login: () => void;
   logout: () => void;
+  /** Merge a partial update into the cached profile (e.g. after equipping an
+   * avatar item) without a full session refetch. */
+  updateProfile: (patch: Partial<Profile>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -185,6 +188,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [account?.address, currentWallet]);
 
+  const updateProfile = useCallback((patch: Partial<Profile>) => {
+    setProfile((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+
   const value: AuthContextValue = {
     address: account?.address ?? null,
     profile,
@@ -195,6 +202,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     canLogin,
     login,
     logout,
+    updateProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

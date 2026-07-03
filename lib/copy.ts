@@ -141,6 +141,33 @@ export const ABOUT = {
   ],
 } as const;
 
+// ── Registration 2.0 (v4 P2) ────────────────────────────────────────────────
+export const REGISTER = {
+  cta: 'Register',
+  ctaApproval: 'Request to join',
+  requested: 'Requested ✓',
+  going: "You're in ✓",
+  busy: 'Registering…',
+  approvalNote: 'The host approves registrations.',
+  capacityAlmostFull: 'Almost full',
+  capacityFull: 'This event is full',
+  guestNamePlaceholder: 'Your name',
+  guestEmailPlaceholder: 'Your email',
+  guestNote: 'We only use this to confirm your spot and send your Passport link.',
+  successTitle: "You're in.",
+  successBody: 'Check in at the door to collect this stamp.',
+  successTitlePending: "You're on the list.",
+  successBodyPending: "The host will approve your request — we'll let you know.",
+  addToCalendar: 'Add to calendar',
+  shareWhatsApp: 'Share to WhatsApp',
+  openEventRoom: 'Open event room',
+  claimTitle: 'Claim your Passport to check in & earn the stamp.',
+  claimCta: 'Log in',
+  claimBusy: 'Claiming your spot…',
+  claimSuccess: "You're in — welcome to your Passport.",
+  mailFallbackTitle: "Save this link — it's how you'll claim your Passport later:",
+} as const;
+
 // ── Settings → External collectible avatar (opt-in, advanced) ──────────────────
 export const SETTINGS_EXTERNAL_AVATAR = {
   title: 'External collectible avatar',

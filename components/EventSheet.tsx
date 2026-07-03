@@ -15,6 +15,7 @@ interface EventSheetProps {
   onClose: () => void;
   onViewBuilding?: (event: Event) => void;
   onBuildingImage?: (event: Event, url: string) => void;
+  onOpenEventRoom?: () => void;
 }
 
 const PEEK_PX = 132; // just the carousel strip
@@ -33,6 +34,7 @@ export default function EventSheet({
   onClose,
   onViewBuilding,
   onBuildingImage,
+  onOpenEventRoom,
 }: EventSheetProps) {
   const [snap, setSnap] = useState<SnapPoint>('peek');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -175,6 +177,7 @@ export default function EventSheet({
             event={active}
             onViewBuilding={onViewBuilding ? () => onViewBuilding(active) : undefined}
             onBuildingImage={onBuildingImage ? (url) => onBuildingImage(active, url) : undefined}
+            onOpenEventRoom={onOpenEventRoom}
             hideHero
           />
         </div>

@@ -115,6 +115,7 @@ A large follow-on brief: P0 audit (above) → P1 Glass/Dock UI → P2 Registrati
 |---|---|---|
 | **0** | Audit fixes — guild.move access control, cosmetics MintCap, Move.toml pin, withdraw-flow audit | ✅ Built (see above) |
 | **1** | Glass & Dock UI — place-anchored glass system, mobile Dock with live-ring map orb, glass search bar, Chat 2.0 restructure (DMs/Community) | ✅ Built |
+| **2** | Registration 2.0 — RegisterModal, guest capture + claim, capacity/approval, organizer question builder | ✅ Built |
 
 **P1 — the Dock and the glass system.** The "something new" instead of Instagram-neutral-gray glass: panels are tinted paper/teal (`--glass-bg`/`--glass-brd` in [globals.css](app/globals.css), a `.glass` utility class with `contain: paint`, a cheaper blur below `md`, and a solid fallback for browsers without `backdrop-filter`), never plain gray. Full `teal`/`live` (+ a `coral` alias) 50–900 ramps and semantic aliases (`surface-1`/`surface-2`, `ok`/`warn`/`danger`, `bubble-me`) were added to [tailwind.config.ts](tailwind.config.ts) — `DEFAULT` stays the existing CSS-var (dark-mode-adaptive) value so every current `bg-teal`/`text-live` usage is unaffected; the numbered steps are static (not CSS-var-driven), a deliberate simplification since they're fine-grained accents, not the core adaptive surface language.
 
@@ -123,6 +124,15 @@ A large follow-on brief: P0 audit (above) → P1 Glass/Dock UI → P2 Registrati
 - **Chat restructure**: `ChatDrawer.tsx`'s 3 flat tabs (Guilds/Live/DMs) became a top segmented **DMs | Community** control; `components/chat/Community.tsx` stacks "Happening now" (event rooms) above guild channels. Both `EventRooms` and `GuildChannels` gained `embedded`/`onOpenChange` props and **stay mounted at all times** inside `Community` — only their layout classes swap between "stacked list" and "full panel" as a room opens, so their internal open-room state survives the transition (an earlier design that conditionally mounted/unmounted them on open would have reset that state on every tap — caught before writing it, not after).
 - Desktop's top nav (`Header.tsx`) is now `.glass` too, instead of a flat `bg-paper/90`.
 - **Verified**: clean build; mobile geometry checked via `getBoundingClientRect()` (not screenshots — the standing limitation in this environment) at 390×812 — Dock, glass search card, and the live-count badge all have clear gaps with no overlap; dark mode confirmed via the same tokens; desktop confirmed at full 1280×800 DOM size (a screenshot artifact at that resolution painted mostly black despite correct `offsetWidth`/`offsetHeight` on `<body>`/`<header>`/the map container — a capture-tool quirk, not a layout bug, confirmed by direct measurement rather than trusting the image).
+
+**P2 — Registration 2.0.** Replaces the old inline RSVP toggle. Migration [009_registration.sql](supabase/migrations/009_registration.sql) (the brief's own draft proposed 008 — renumbered to avoid colliding with the real `008_p0_audit_fixes.sql`, same discipline every phase has used).
+
+- **[RegisterModal.tsx](components/RegisterModal.tsx)** ([lib/useRegistration.ts](lib/useRegistration.ts)): cover strip (guild chip + status badge) → title/time/venue → capacity bar (hidden when uncapped, turns coral at ≥90% full) → social proof (mutuals-first avatar stack, computed server-side from `friendships` — "Ana, Wei + 12 others going", never "be the first") → organizer questions (`short_text`/`long_text`/`single_select`/`multi_select`/`checkbox`) → guest name/email capture (logged-out only — zero identity fields when logged in, per the auntie test) → approval note → primary button (`Register` → `Request to join` → `Requested ✓` / `You're in ✓`). On success: the Stamp art ([/api/stamp-image](app/api/stamp-image/%5Bevent_id%5D/route.ts)) animates in (`stamp-rotate-settle` in [globals.css](app/globals.css)) with a lightweight hand-rolled confetti burst (no new dependency), plus add-to-calendar / share-to-WhatsApp / open-event-room. Desktop: centered spring scale-in modal; mobile: full-height sheet with drag-to-dismiss; Esc/backdrop-click close; a hand-rolled Tab-cycling focus trap (no new dependency, ~15 lines) since a full focus-trap library felt disproportionate for one modal.
+- **The collapsed trigger button (inside [EventDetailContent.tsx](components/EventDetailContent.tsx)) and the modal share ONE `useRegistration` hook instance**, passed down as a prop rather than each creating its own — an earlier design had the modal instantiate its own copy, which would have left the trigger's label stale (still showing "Register") immediately after a successful registration inside the modal, since the two instances' state would never reconcile. Caught before shipping, not after.
+- **Two flows**: logged-in is one-tap once the modal is open (no questions → nothing to fill in but the primary button). Guest capture creates a `guests` row + an `event_rsvps` row with `guest_id` (no `profile_id`) via [`/api/register`](app/api/register/route.ts) POST — **event_rsvps' direct client INSERT was revoked** in the same migration, since capacity/approval are now real server-enforced invariants a raw client insert could otherwise bypass entirely (the same class of gap `checkins`/`withdrawals` were already built to avoid). [lib/mail.ts](lib/mail.ts) sends the claim link via Resend's plain HTTP API (no SDK) when `RESEND_API_KEY` is set — **awaited, not fire-and-forget**, so the response can honestly report whether the email went out and fall back to showing the claim link directly ("screenshot this") when it didn't, rather than promising an email that might never arrive. [`/api/register/claim`](app/api/register/claim/route.ts) merges the guest's registration(s) into the profile after login — it also sweeps every other unclaimed guest row sharing the same email, so someone who guest-registered for several events before ever logging in claims all of them from one link, not just the one they clicked. [ClaimHandler.tsx](components/ClaimHandler.tsx) on the `/e/[slug]` share page drives this via the same one-shot-query-param pattern as `?open=`/`?event=`.
+- **Organizer tools** (manage page's new Registration tab, [app/guilds/[slug]/events/[id]/manage/page.tsx](app/guilds/%5Bslug%5D/events/%5Bid%5D/manage/page.tsx)): capacity + approval-mode settings (PATCH), a question builder (add/reorder via up/down/delete — direct RLS-authed client writes, since `registration_questions`' RLS already scopes writes to the event's host, no service-role route needed for simple CRUD), a pending-approvals queue ([`/api/register/approve`](app/api/register/approve/route.ts) — service-role, since approving someone *else's* registration has no client RLS path), and the CSV export now includes one column per question plus registration status.
+- **Honest simplifications, not gaps papered over**: no waitlist (out of scope per the brief) — a full event blocks new registrations outright once capacity is reached; capacity counts only `confirmed` spots, so a pending approval request doesn't reserve a seat until approved; transit info isn't re-fetched inside the modal (it's already visible in the parent detail view for the map contexts, and the share page never showed it either — avoiding a duplicate fetch for a context that already has the surface for it).
+- **Verified**: clean build (30 routes). Live-tested in the browser end to end: opened the register trigger, filled the guest email, submitted — confirmed the POST fires and a server error ("Supabase not configured", since this build environment has no live database) surfaces cleanly in the modal instead of failing silently. One real environment gotcha hit and resolved during this check: Fast Refresh from concurrent file edits left duplicate hidden component instances in the DOM mid-session, which briefly made it look like clicks weren't registering — resolved by a hard reload and re-verifying against only visible (`offsetParent`-truthy) elements, not a code bug.
 
 ---
 
@@ -167,6 +177,7 @@ Fill in the keys. **Minimum to see the map running:** none — it falls back to 
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | [console.cloud.google.com](https://console.cloud.google.com) → Credentials → OAuth client | Phase 2 login |
 | `STAMP_REGISTRY_ID` / `STAMP_ADMIN_CAP_ID` / `STAMP_ADMIN_PRIVATE_KEY` | From publishing `move/whatsvp` + funding a backend address (see below) | v3 P3 on-chain Stamps |
 | `GUILD_REGISTRY_ID` / `GUILD_ADMIN_CAP_ID` | From publishing `move/whatsvp` — reuses `STAMP_ADMIN_PRIVATE_KEY` as the signer | Pre-v4 P0 on-chain GuildBadges |
+| `RESEND_API_KEY` / `MAIL_FROM` | [resend.com](https://resend.com) (free tier) | v4 P2 guest-claim emails (falls back to an on-screen link without it) |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | `npx web-push generate-vapid-keys` | v3 P4 push notifications |
 
 ### 3. Database
@@ -183,6 +194,7 @@ Create a Supabase project, then run the migrations **in order** and (optionally)
 #   supabase/migrations/006_checkins.sql       ← check-in -> Stamp -> Passport
 #   supabase/migrations/007_chat2.sql          ← event rooms, DMs, reactions, push
 #   supabase/migrations/008_p0_audit_fixes.sql ← guild badge tracking + withdrawals audit trail
+#   supabase/migrations/009_registration.sql   ← Registration 2.0: capacity/approval, questions, guests
 #   supabase/seed.sql                            ← optional KL demo pins
 
 # Or with the Supabase CLI:
@@ -328,7 +340,10 @@ components/
   GlassSearchBar.tsx      search + near-me + status filter, one glass panel, collapses on pan (v4 P1)
   EventPopup.tsx           desktop event detail card (floating, md:block)
   EventSheet.tsx           mobile draggable bottom sheet: peek carousel → half → full (md:hidden)
-  EventDetailContent.tsx  shared detail body (time/venue/transit/RSVP/share/building) — used by both
+  EventDetailContent.tsx  shared detail body (time/venue/transit/registration/share/building) — used by both
+  RegisterModal.tsx        Registration 2.0: cover/capacity/social proof/questions/guest capture (v4 P2)
+  RegisterButton.tsx       standalone Register trigger for the /e/[slug] share page (v4 P2)
+  ClaimHandler.tsx         guest-claim ?claim= handler on /e/[slug] (v4 P2)
   OrganizeDrawer.tsx       paste-a-Luma-link form (gated)
   ChatDrawer.tsx           groups → topics → Supabase Realtime messages
   GuildsDrawer.tsx         guild directory + guild home (roster/events/join) + create
@@ -342,7 +357,9 @@ components/
 lib/
   types.ts                shared types
   utils.ts                status derivation, formatting, haversine, filtering, time-segment matching, check-in window
-  useEventDetail.ts       shared event-detail state/actions (transit, RSVP, share, building upload, check-in)
+  useEventDetail.ts       shared event-detail state/actions (transit, share, building upload, check-in)
+  useRegistration.ts      Registration 2.0 data/submit logic, shared by the trigger + RegisterModal (v4 P2)
+  mail.ts                 dep-free Resend HTTP-API mail sending for the guest-claim link (v4 P2)
   checkinCode.ts          dep-free HMAC TOTP-style rotating check-in code (server-only)
   sui-admin.ts            backend Sui signer for AdminCap-gated Stamp mints (server-only, v3 P3)
   useRoom.ts              shared chat engine: history, Realtime, send, reactions, presence (v3 P4)

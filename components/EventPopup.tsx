@@ -9,14 +9,15 @@ interface EventPopupProps {
   onClose: () => void;
   onViewBuilding?: () => void;
   onBuildingImage?: (url: string) => void;
+  onOpenEventRoom?: () => void;
 }
 
 /**
  * Desktop-only floating event card (`hidden md:block`) — mobile uses EventSheet
  * (a draggable bottom sheet) instead. Both share EventDetailContent for the
- * actual data/logic so RSVP/transit/share/upload live in exactly one place.
+ * actual data/logic so registration/transit/share/upload live in exactly one place.
  */
-export default function EventPopup({ event, onClose, onViewBuilding, onBuildingImage }: EventPopupProps) {
+export default function EventPopup({ event, onClose, onViewBuilding, onBuildingImage, onOpenEventRoom }: EventPopupProps) {
   // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -35,7 +36,12 @@ export default function EventPopup({ event, onClose, onViewBuilding, onBuildingI
         aria-modal="true"
         aria-label={event.title}
       >
-        <EventDetailContent event={event} onViewBuilding={onViewBuilding} onBuildingImage={onBuildingImage} />
+        <EventDetailContent
+          event={event}
+          onViewBuilding={onViewBuilding}
+          onBuildingImage={onBuildingImage}
+          onOpenEventRoom={onOpenEventRoom}
+        />
 
         <button
           onClick={onClose}

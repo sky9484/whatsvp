@@ -375,6 +375,7 @@ export default function MapContainer() {
           }}
           onViewBuilding={() => handleViewBuilding(selectedEvent)}
           onBuildingImage={(url) => handleBuildingImage(selectedEvent, url)}
+          onOpenEventRoom={handleChat}
         />
       )}
 
@@ -389,6 +390,7 @@ export default function MapContainer() {
         }}
         onViewBuilding={handleViewBuilding}
         onBuildingImage={handleBuildingImage}
+        onOpenEventRoom={handleChat}
       />
 
       {/* Organize drawer */}

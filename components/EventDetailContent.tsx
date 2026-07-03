@@ -1,35 +1,42 @@
 'use client';
 
+import { useState } from 'react';
 import type { Event } from '@/lib/types';
 import { formatEventTime, whatsAppShareUrl } from '@/lib/utils';
 import { useEventDetail } from '@/lib/useEventDetail';
+import { useRegistration } from '@/lib/useRegistration';
+import RegisterModal from './RegisterModal';
+import { REGISTER } from '@/lib/copy';
 
 interface EventDetailContentProps {
   event: Event;
   onViewBuilding?: () => void;
   onBuildingImage?: (url: string) => void;
+  /** Opens the event's chat room — threaded down from MapContainer's existing
+   * handleChat (v4 P2, RegisterModal's post-registration "Open event room"). */
+  onOpenEventRoom?: () => void;
   /** Hide the cover-image hero + title (the mobile sheet renders its own compact header). */
   hideHero?: boolean;
 }
 
 /**
- * The actual event-detail content — time/venue, transit, RSVP/calendar/share,
- * directions, building reveal/upload. Shared by EventPopup (desktop floating
- * card) and EventSheet (mobile bottom sheet) so the data/logic lives once.
+ * The actual event-detail content — time/venue, transit, registration,
+ * calendar/share, directions, building reveal/upload. Shared by EventPopup
+ * (desktop floating card) and EventSheet (mobile bottom sheet) so the
+ * data/logic lives once. Registration 2.0 (v4 P2) replaced the old inline
+ * RSVP toggle with a trigger that opens RegisterModal.
  */
 export default function EventDetailContent({
   event,
   onViewBuilding,
   onBuildingImage,
+  onOpenEventRoom,
   hideHero,
 }: EventDetailContentProps) {
   const {
     address,
     isLandmark,
     transit,
-    rsvpCount,
-    going,
-    rsvpBusy,
     shared,
     uploading,
     uploadErr,
@@ -40,11 +47,17 @@ export default function EventDetailContent({
     googleMapsUrl,
     wazeUrl,
     calendarUrl,
-    toggleRsvp,
     uploadBuilding,
     checkIn,
     share,
   } = useEventDetail(event, onBuildingImage);
+
+  const [showRegister, setShowRegister] = useState(false);
+  const reg = useRegistration(event);
+
+  const registerLabel =
+    reg.myStatus === 'confirmed' ? REGISTER.going : reg.myStatus === 'pending' ? REGISTER.requested : reg.approvalMode ? REGISTER.ctaApproval : REGISTER.cta;
+  const registerDone = reg.myStatus !== 'none';
 
   const badge =
     event.status === 'live'
@@ -153,17 +166,16 @@ export default function EventDetailContent({
           )}
         </div>
 
-        {/* Primary actions: RSVP + share */}
+        {/* Primary actions: Register + share */}
         <div className="mt-4 flex gap-2">
           <button
-            onClick={toggleRsvp}
-            disabled={rsvpBusy}
+            onClick={() => setShowRegister(true)}
             className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60
-              ${going ? 'bg-teal/15 text-teal border border-teal/30' : 'bg-teal text-white hover:bg-teal/90'}`}
+              ${registerDone ? 'bg-teal/15 text-teal border border-teal/30' : 'bg-teal text-white hover:bg-teal/90'}`}
           >
-            {going ? '✓ Going' : 'RSVP'}
-            {rsvpCount !== null && rsvpCount > 0 && (
-              <span className={going ? 'text-teal/70' : 'text-white/80'}> · {rsvpCount}</span>
+            {registerLabel}
+            {reg.confirmedCount > 0 && (
+              <span className={registerDone ? 'text-teal/70' : 'text-white/80'}> · {reg.confirmedCount}</span>
             )}
           </button>
           <a
@@ -273,6 +285,14 @@ export default function EventDetailContent({
         )}
         {uploadErr && <p className="mt-1 text-xs text-live text-center">{uploadErr}</p>}
       </div>
+
+      <RegisterModal
+        event={event}
+        isOpen={showRegister}
+        onClose={() => setShowRegister(false)}
+        reg={reg}
+        onOpenEventRoom={onOpenEventRoom}
+      />
     </>
   );
 }

@@ -1,27 +1,24 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Event, TransitInfo } from './types';
 import { useAuth } from './auth';
-import { createClient, createAuthedClient } from './supabase/client';
+import { createAuthedClient } from './supabase/client';
 import { resolveLandmark } from './buildings';
 import { isCheckinWindowOpen } from './utils';
 
 /**
- * Shared state + actions for an event's detail view — transit, RSVP, share, and
- * the community building-photo upload. Used by both EventPopup (desktop card)
- * and EventSheet (mobile bottom sheet) so the underlying data/logic lives in
- * exactly one place.
+ * Shared state + actions for an event's detail view — transit, share, check-in,
+ * and the community building-photo upload. Registration (RSVP) moved to
+ * lib/useRegistration.ts + RegisterModal.tsx (v4 P2) — used by both EventPopup
+ * (desktop card) and EventSheet (mobile bottom sheet) so the underlying
+ * data/logic lives in exactly one place.
  */
 export function useEventDetail(event: Event, onBuildingImage?: (url: string) => void) {
   const { profile, token, address, login } = useAuth();
   const isLandmark = resolveLandmark(event) !== null;
 
   const [transit, setTransit] = useState<TransitInfo | null | 'loading'>('loading');
-  const [rsvpCount, setRsvpCount] = useState<number | null>(null);
-  const [going, setGoing] = useState(false);
-  const [rsvpBusy, setRsvpBusy] = useState(false);
   const [shared, setShared] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState('');
@@ -29,8 +26,7 @@ export function useEventDetail(event: Event, onBuildingImage?: (url: string) => 
   const [checkinBusy, setCheckinBusy] = useState(false);
   const [checkinError, setCheckinError] = useState('');
 
-  const anon = useMemo<SupabaseClient | null>(() => createClient(), []);
-  const authed = useMemo<SupabaseClient | null>(() => createAuthedClient(token), [token]);
+  const authed = useMemo(() => createAuthedClient(token), [token]);
 
   const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${event.lat},${event.lng}&travelmode=transit`;
   const wazeUrl = `https://www.waze.com/ul?ll=${event.lat},${event.lng}&navigate=yes`;
@@ -44,36 +40,6 @@ export function useEventDetail(event: Event, onBuildingImage?: (url: string) => 
       .then((d) => setTransit(d.transit ?? null))
       .catch(() => setTransit(null));
   }, [event.lat, event.lng]);
-
-  // RSVP count + my status
-  useEffect(() => {
-    let cancelled = false;
-    if (anon) {
-      anon
-        .from('event_rsvps')
-        .select('*', { count: 'exact', head: true })
-        .eq('event_id', event.id)
-        .then(({ count }) => {
-          if (!cancelled) setRsvpCount(count ?? 0);
-        });
-    }
-    if (authed && profile) {
-      authed
-        .from('event_rsvps')
-        .select('event_id')
-        .eq('event_id', event.id)
-        .eq('profile_id', profile.id)
-        .maybeSingle()
-        .then(({ data }) => {
-          if (!cancelled) setGoing(Boolean(data));
-        });
-    } else {
-      setGoing(false);
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [event.id, anon, authed, profile]);
 
   // My check-in status for this event
   useEffect(() => {
@@ -97,26 +63,6 @@ export function useEventDetail(event: Event, onBuildingImage?: (url: string) => 
   }, [event.id, authed, profile]);
 
   const checkinOpen = isCheckinWindowOpen(event) && (event.checkin_methods?.includes('geofence') ?? true);
-
-  const toggleRsvp = async () => {
-    if (!address) return login(); // gate behind login
-    if (!authed || !profile) return;
-    setRsvpBusy(true);
-    const next = !going;
-    // optimistic
-    setGoing(next);
-    setRsvpCount((c) => (c ?? 0) + (next ? 1 : -1));
-    const q = next
-      ? authed.from('event_rsvps').insert({ event_id: event.id, profile_id: profile.id })
-      : authed.from('event_rsvps').delete().eq('event_id', event.id).eq('profile_id', profile.id);
-    const { error } = await q;
-    if (error) {
-      // revert
-      setGoing(!next);
-      setRsvpCount((c) => (c ?? 0) + (next ? -1 : 1));
-    }
-    setRsvpBusy(false);
-  };
 
   const uploadBuilding = async (file: File) => {
     if (!address) return login();
@@ -208,9 +154,6 @@ export function useEventDetail(event: Event, onBuildingImage?: (url: string) => 
     address,
     isLandmark,
     transit,
-    rsvpCount,
-    going,
-    rsvpBusy,
     shared,
     uploading,
     uploadErr,
@@ -221,7 +164,6 @@ export function useEventDetail(event: Event, onBuildingImage?: (url: string) => 
     googleMapsUrl,
     wazeUrl,
     calendarUrl,
-    toggleRsvp,
     uploadBuilding,
     checkIn,
     share,
@@ -229,7 +171,7 @@ export function useEventDetail(event: Event, onBuildingImage?: (url: string) => 
 }
 
 /** Google Calendar "add event" template link. */
-function buildCalendarUrl(event: Event): string {
+export function buildCalendarUrl(event: Event): string {
   const toGcal = (iso: string) => new Date(iso).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const start = toGcal(event.starts_at);
   const end = toGcal(event.ends_at ?? new Date(new Date(event.starts_at).getTime() + 3 * 3600_000).toISOString());

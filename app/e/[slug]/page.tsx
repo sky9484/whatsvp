@@ -5,6 +5,8 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { withStatus, formatEventTime, whatsAppShareUrl } from '@/lib/utils';
 import { TAGLINE } from '@/lib/copy';
 import type { RawEvent } from '@/lib/types';
+import RegisterButton from '@/components/RegisterButton';
+import ClaimHandler from '@/components/ClaimHandler';
 
 /**
  * Public, unauthenticated, server-rendered event share page — fast, and
@@ -66,10 +68,13 @@ export default async function EventSharePage({ params }: { params: Promise<{ slu
           {event.venue_name && <p className="text-sm text-sub">{event.venue_name}</p>}
           {event.description && <p className="mt-3 text-sm text-ink/70 line-clamp-3">{event.description}</p>}
 
+          <ClaimHandler />
+
           <div className="mt-6 flex flex-col gap-2">
+            <RegisterButton event={event} />
             <Link
               href={`/?event=${event.id}`}
-              className="w-full py-2.5 rounded-xl bg-teal text-white text-sm font-semibold text-center hover:bg-teal/90 transition-colors"
+              className="w-full py-2.5 rounded-xl border border-hairline text-sm font-medium text-center text-ink hover:bg-ink/5 transition-colors"
             >
               Open in WhatsVP
             </Link>

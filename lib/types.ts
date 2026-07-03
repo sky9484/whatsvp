@@ -24,6 +24,9 @@ export interface RawEvent {
   guild_id?: string | null;
   /** Which check-in methods are enabled (v3 P3) — never includes checkin_secret. */
   checkin_methods?: string[] | null;
+  /** Registration 2.0 (v4 P2) — null capacity means uncapped. */
+  capacity?: number | null;
+  approval_mode?: boolean;
 }
 
 export interface Event extends RawEvent {
@@ -171,6 +174,30 @@ export interface Checkin {
   events?: Pick<RawEvent, 'id' | 'title' | 'venue_name' | 'starts_at' | 'ends_at' | 'cover_url'> | null;
   profiles?: { display_name: string; avatar_url?: string | null } | null;
 }
+
+// ── Registration 2.0 (v4 P2) ────────────────────────────────────────────────
+export type QuestionKind = 'short_text' | 'long_text' | 'single_select' | 'multi_select' | 'checkbox';
+
+export interface RegistrationQuestion {
+  id: string;
+  event_id: string;
+  idx: number;
+  kind: QuestionKind;
+  label: string;
+  options?: string[] | null;
+  required: boolean;
+}
+
+export type RegistrationAnswerValue = string | string[] | boolean;
+
+export interface RegistrationAttendee {
+  profile_id: string;
+  display_name: string;
+  avatar_url?: string | null;
+  mutual?: boolean;
+}
+
+export type RsvpStatus = 'none' | 'confirmed' | 'pending';
 
 export interface LumaEventData {
   title: string;

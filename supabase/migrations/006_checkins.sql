@@ -7,7 +7,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- checkin_secret is the HMAC key behind the rotating QR code (lib/checkinCode.ts).
 -- It must never be readable by any client — only server routes that generate
 -- or verify codes may read it, so it's revoked from both client DB roles below.
-ALTER TABLE events ADD COLUMN IF NOT EXISTS checkin_secret TEXT NOT NULL DEFAULT encode(gen_random_bytes(16), 'hex');
+ALTER TABLE events ADD COLUMN IF NOT EXISTS checkin_secret TEXT NOT NULL DEFAULT encode(extensions.gen_random_bytes(16), 'hex');
 ALTER TABLE events ADD COLUMN IF NOT EXISTS checkin_methods TEXT[] NOT NULL DEFAULT ARRAY['geofence', 'qr'];
 
 REVOKE SELECT (checkin_secret) ON events FROM anon, authenticated;
@@ -52,3 +52,4 @@ CREATE POLICY "checkins_select_host"
 -- client self-insert a row here would defeat the entire point of a "stamp" —
 -- this is the same lesson the guild.move audit taught about ungated mints,
 -- applied to the off-chain side of the same feature.
+

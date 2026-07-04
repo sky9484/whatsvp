@@ -1,25 +1,25 @@
--- WhatsVP v4 P5 — real money on Sui (self-custodial USDC, event/guild-anchored).
+-- WhatsVP v4 P5 â€” real money on Sui (self-custodial USDC, event/guild-anchored).
 -- Numbered 012 (the brief's draft proposed 011, which collides with the real
--- 011_scenes.sql — same renumbering discipline every phase has needed). Run
+-- 011_scenes.sql â€” same renumbering discipline every phase has needed). Run
 -- AFTER 011_scenes.sql. Reuses current_profile_id() from 002_auth.sql.
 
 CREATE EXTENSION IF NOT EXISTS citext;
 
--- ── profiles: @handle ─────────────────────────────────────────────────────────
--- Pay-to-@handle resolves a handle → sui_address server-side. citext so
+-- â”€â”€ profiles: @handle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- Pay-to-@handle resolves a handle â†’ sui_address server-side. citext so
 -- @Ana and @ana are the same claim. Claimed via /api/handle (reserved-word
 -- + format checks live there), never a direct client write.
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS handle CITEXT UNIQUE;
 REVOKE UPDATE (handle) ON profiles FROM anon, authenticated;
 
 
--- ── transfers: server-verified money history ─────────────────────────────────
+-- â”€â”€ transfers: server-verified money history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 -- A row here means the SERVER fetched the tx by digest and confirmed
--- sender = session address, the coin type, the recipient, and the amount —
--- never a client-reported amount (§5.2 history integrity, same discipline as
+-- sender = session address, the coin type, the recipient, and the amount â€”
+-- never a client-reported amount (Â§5.2 history integrity, same discipline as
 -- the withdrawals table from P0).
 CREATE TABLE IF NOT EXISTS transfers (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id            UUID PRIMARY KEY DEFAULT extensions.gen_random_uuid(),
   digest        TEXT UNIQUE NOT NULL,
   from_profile  UUID NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
   to_profile    UUID REFERENCES profiles (id) ON DELETE SET NULL,
@@ -37,13 +37,13 @@ ALTER TABLE transfers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "transfers_select_involved"
   ON transfers FOR SELECT
   USING (from_profile = current_profile_id() OR to_profile = current_profile_id());
--- No client INSERT/UPDATE/DELETE — every row is written by /api/transfers/verify
+-- No client INSERT/UPDATE/DELETE â€” every row is written by /api/transfers/verify
 -- under the service role after on-chain verification.
 
 
--- ── splits: the event-room hero flow ─────────────────────────────────────────
+-- â”€â”€ splits: the event-room hero flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 CREATE TABLE IF NOT EXISTS splits (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id            UUID PRIMARY KEY DEFAULT extensions.gen_random_uuid(),
   event_id      UUID NOT NULL REFERENCES events (id) ON DELETE CASCADE,
   creator_id    UUID NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
   payee_address TEXT NOT NULL,             -- who everyone pays (the creator's address), snapshotted
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS splits (
 );
 
 CREATE TABLE IF NOT EXISTS split_shares (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id            UUID PRIMARY KEY DEFAULT extensions.gen_random_uuid(),
   split_id      UUID NOT NULL REFERENCES splits (id) ON DELETE CASCADE,
   profile_id    UUID NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
   amount_base   NUMERIC NOT NULL,
@@ -85,7 +85,7 @@ CREATE POLICY "split_shares_select_involved"
 -- /api/transfers/verify. No client writes to either table.
 
 
--- ── guild dues + tips ─────────────────────────────────────────────────────────
+-- â”€â”€ guild dues + tips â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ALTER TABLE guilds ADD COLUMN IF NOT EXISTS dues_amount_base NUMERIC;
 ALTER TABLE guilds ADD COLUMN IF NOT EXISTS dues_period TEXT NOT NULL DEFAULT 'none' CHECK (dues_period IN ('none', 'monthly', 'yearly'));
 ALTER TABLE guild_members ADD COLUMN IF NOT EXISTS dues_paid_until TIMESTAMPTZ;
@@ -95,9 +95,9 @@ ALTER TABLE guild_members ADD COLUMN IF NOT EXISTS dues_paid_until TIMESTAMPTZ;
 REVOKE UPDATE (dues_paid_until) ON guild_members FROM anon, authenticated;
 
 
--- ── chain_ops: mint/sponsor failure log for retry visibility (§5.6) ───────────
+-- â”€â”€ chain_ops: mint/sponsor failure log for retry visibility (Â§5.6) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 CREATE TABLE IF NOT EXISTS chain_ops (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id          UUID PRIMARY KEY DEFAULT extensions.gen_random_uuid(),
   op_type     TEXT NOT NULL,   -- 'stamp_mint' | 'guild_badge_mint' | 'sponsor' | ...
   status      TEXT NOT NULL,   -- 'ok' | 'failed'
   detail      TEXT,
@@ -105,4 +105,5 @@ CREATE TABLE IF NOT EXISTS chain_ops (
 );
 
 ALTER TABLE chain_ops ENABLE ROW LEVEL SECURITY;
--- Service-role only — internal ops/retry log, no client access at all.
+-- Service-role only â€” internal ops/retry log, no client access at all.
+

@@ -37,31 +37,49 @@ $$;
 -- Whether the caller may see a given message, transitively via its room.
 CREATE OR REPLACE FUNCTION can_access_message(p_message_id UUID)
 RETURNS BOOLEAN
-LANGUAGE SQL
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM messages m
-    WHERE m.id = p_message_id
-      AND (
-        (m.topic_id IS NOT NULL AND EXISTS (
-          SELECT 1 FROM topics t
-          JOIN group_members gm ON gm.group_id = t.group_id
-          WHERE t.id = m.topic_id AND gm.profile_id = current_profile_id()
-        ))
-        OR (m.event_room_id IS NOT NULL AND EXISTS (
-          SELECT 1 FROM event_rooms er WHERE er.id = m.event_room_id AND can_access_event_room(er.event_id)
-        ))
-        OR (m.dm_thread_id IS NOT NULL AND EXISTS (
-          SELECT 1 FROM dm_threads dt WHERE dt.id = m.dm_thread_id
-            AND (dt.profile_a_id = current_profile_id() OR dt.profile_b_id = current_profile_id())
-        ))
-      )
-  )
-$$;
+DECLARE
+  ok BOOLEAN;
+BEGIN
+  EXECUTE $q$
+    SELECT EXISTS (
+      SELECT 1
+      FROM messages m
+      WHERE m.id = $1
+        AND (
+          (m.topic_id IS NOT NULL AND EXISTS (
+            SELECT 1
+            FROM topics t
+            JOIN group_members gm ON gm.group_id = t.group_id
+            WHERE t.id = m.topic_id
+              AND gm.profile_id = current_profile_id()
+          ))
+          OR (m.event_room_id IS NOT NULL AND EXISTS (
+            SELECT 1
+            FROM event_rooms er
+            WHERE er.id = m.event_room_id
+              AND can_access_event_room(er.event_id)
+          ))
+          OR (m.dm_thread_id IS NOT NULL AND EXISTS (
+            SELECT 1
+            FROM dm_threads dt
+            WHERE dt.id = m.dm_thread_id
+              AND (
+                dt.profile_a_id = current_profile_id()
+                OR dt.profile_b_id = current_profile_id()
+              )
+          ))
+        )
+    )
+  $q$ INTO ok USING p_message_id;
 
+  RETURN COALESCE(ok, false);
+END;
+$$;
 
 -- ── event_rooms ──────────────────────────────────────────────────────────────
 -- One per event, auto-created by the trigger below — never client-inserted.
@@ -370,3 +388,4 @@ CREATE TABLE IF NOT EXISTS event_reminders_sent (
 
 ALTER TABLE event_reminders_sent ENABLE ROW LEVEL SECURITY;
 -- No client policy at all — written only by the cron route (service role).
+

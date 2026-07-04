@@ -1,8 +1,8 @@
--- WhatsVP v4 P3 — Avatars (layered, free-first) + Presence (privacy-first).
+-- WhatsVP v4 P3 â€” Avatars (layered, free-first) + Presence (privacy-first).
 -- Run AFTER 009_registration.sql. Reuses current_profile_id() from 002_auth.sql.
 
--- ── avatar_items: the free/premium catalog ──────────────────────────────────
--- World-readable, curated (service-role writes only) — this is the game's
+-- â”€â”€ avatar_items: the free/premium catalog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- World-readable, curated (service-role writes only) â€” this is the game's
 -- asset catalog, not user content.
 CREATE TABLE IF NOT EXISTS avatar_items (
   id          TEXT PRIMARY KEY,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS avatar_items (
   svg_path    TEXT NOT NULL,
   premium     BOOLEAN NOT NULL DEFAULT false,
   -- A real on-chain Move type string for a future per-item Kiosk collection.
-  -- Left NULL for every seeded item today — cosmetics.move's Avatar struct is
+  -- Left NULL for every seeded item today â€” cosmetics.move's Avatar struct is
   -- one generic type, not per-catalog-item variants, so there is no real
   -- per-item type to check yet. The equip route's on-chain-ownership branch
   -- is real and wired for when that Move design exists; today's premium
@@ -22,14 +22,14 @@ CREATE TABLE IF NOT EXISTS avatar_items (
 
 ALTER TABLE avatar_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "avatar_items_select_all" ON avatar_items FOR SELECT USING (true);
--- No client INSERT/UPDATE/DELETE — the catalog is seeded/curated, not user-generated.
+-- No client INSERT/UPDATE/DELETE â€” the catalog is seeded/curated, not user-generated.
 
 
--- ── profiles: avatar_config ──────────────────────────────────────────────────
+-- â”€â”€ profiles: avatar_config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_config JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 -- Every equip (free or premium) goes through /api/avatars/equip, never a
--- direct client write — a direct write could otherwise set any item_id into
+-- direct client write â€” a direct write could otherwise set any item_id into
 -- any slot, including a premium one the caller doesn't own, and RLS has no
 -- clean way to express "this JSONB value must reference a non-premium item
 -- OR you must own it" without a trigger. Simpler and just as fast in
@@ -37,9 +37,9 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_config JSONB NOT NULL DEFAU
 REVOKE UPDATE (avatar_config) ON profiles FROM anon, authenticated;
 
 
--- ── granted_items: server-granted premium unlocks (milestones, etc.) ────────
+-- â”€â”€ granted_items: server-granted premium unlocks (milestones, etc.) â”€â”€â”€â”€â”€â”€â”€â”€
 CREATE TABLE IF NOT EXISTS granted_items (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id          UUID PRIMARY KEY DEFAULT extensions.gen_random_uuid(),
   profile_id  UUID NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
   item_id     TEXT NOT NULL REFERENCES avatar_items (id),
   reason      TEXT,
@@ -49,15 +49,15 @@ CREATE TABLE IF NOT EXISTS granted_items (
 
 ALTER TABLE granted_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "granted_items_select_self" ON granted_items FOR SELECT USING (profile_id = current_profile_id());
--- No client INSERT/UPDATE/DELETE — grants are a server decision (checkin
+-- No client INSERT/UPDATE/DELETE â€” grants are a server decision (checkin
 -- milestones today), the same "server that verified writes the record"
 -- principle as checkins/withdrawals.
 
 
--- ── checkins: manual "Leave" for event presence ──────────────────────────────
+-- â”€â”€ checkins: manual "Leave" for event presence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ALTER TABLE checkins ADD COLUMN IF NOT EXISTS left_at TIMESTAMPTZ;
 
--- The checked-in person can set (and only set) left_at on their own row —
+-- The checked-in person can set (and only set) left_at on their own row â€”
 -- everything else on checkins (method, coords_hash, stamp_*) stays
 -- server-write-only, per 006_checkins.sql's original reasoning.
 CREATE POLICY "checkins_update_self_leave"
@@ -67,7 +67,7 @@ CREATE POLICY "checkins_update_self_leave"
 REVOKE UPDATE (event_id, profile_id, method, coords_hash, stamp_minted_at, stamp_tx_digest, created_at) ON checkins FROM anon, authenticated;
 
 -- Event presence ("who's here now") is the brief's one deliberately public-ish
--- signal — readable by anyone logged in, not just the attendee or host, but
+-- signal â€” readable by anyone logged in, not just the attendee or host, but
 -- ONLY for currently-present rows (left_at IS NULL). Past attendance stays
 -- restricted to checkins_select_self/checkins_select_host.
 CREATE POLICY "checkins_select_here_now"
@@ -75,8 +75,8 @@ CREATE POLICY "checkins_select_here_now"
   USING (left_at IS NULL);
 
 
--- ── presence: opt-in, mutuals-only, coarse area presence ─────────────────────
--- geohash6 (~±0.6 km) only — never raw coordinates. A NULL geohash6 with a
+-- â”€â”€ presence: opt-in, mutuals-only, coarse area presence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- geohash6 (~Â±0.6 km) only â€” never raw coordinates. A NULL geohash6 with a
 -- row present just means "toggled on, no fix yet"; deleting the row is how a
 -- user goes fully back to ghost mode (client does this when the Settings
 -- toggle turns off).
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS presence (
 
 ALTER TABLE presence ENABLE ROW LEVEL SECURITY;
 
--- Readable by yourself and by accepted mutuals only — never by strangers.
+-- Readable by yourself and by accepted mutuals only â€” never by strangers.
 CREATE POLICY "presence_select_self_or_mutual"
   ON presence FOR SELECT
   USING (
@@ -108,15 +108,15 @@ CREATE POLICY "presence_update_self"
   ON presence FOR UPDATE
   USING (profile_id = current_profile_id())
   WITH CHECK (profile_id = current_profile_id());
--- Deleting your own row is how "Show my area to mutuals" turning off works —
+-- Deleting your own row is how "Show my area to mutuals" turning off works â€”
 -- ghost mode means no row at all, not a stale/hidden one.
 CREATE POLICY "presence_delete_self"
   ON presence FOR DELETE
   USING (profile_id = current_profile_id());
 
 
--- ── seed: a starting free avatar catalog (19 items across 6 slots) ──────────
--- Deliberately smaller than the brief's "~24" suggestion — a real, working
+-- â”€â”€ seed: a starting free avatar catalog (19 items across 6 slots) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- Deliberately smaller than the brief's "~24" suggestion â€” a real, working
 -- catalog now beats padding to a round number; adding more later is just
 -- inserting rows + SVG files, the system doesn't care about count.
 INSERT INTO avatar_items (id, slot, name, svg_path, premium) VALUES
@@ -139,9 +139,10 @@ INSERT INTO avatar_items (id, slot, name, svg_path, premium) VALUES
   ('bg_teal',       'bg',   'Teal',         '/avatar/bg_teal.svg',       false),
   ('bg_coral',      'bg',   'Coral',        '/avatar/bg_coral.svg',      false),
   -- Milestone-only premium items (v3 P3's Passport milestones: 5/10/25 stamps).
-  -- Unlocked via granted_items on checkin, never purchasable — seeds the
+  -- Unlocked via granted_items on checkin, never purchasable â€” seeds the
   -- cosmetic economy before any shop exists.
   ('acc_medal',     'accessory', 'Medal (5 stamps)',    '/avatar/acc_medal.svg',    true),
   ('bg_gold',       'bg',        'Gold (10 stamps)',    '/avatar/bg_gold.svg',      true),
   ('acc_crown',     'accessory', 'Crown (25 stamps)',   '/avatar/acc_crown.svg',    true)
 ON CONFLICT (id) DO NOTHING;
+

@@ -35,16 +35,19 @@ interface MapProps {
   flyToTarget?: { lat: number; lng: number } | null;
 }
 
+// Iso-building side/extrude colours, aligned to the v4 identity (coral live /
+// money-teal upcoming). Concrete hex — the iso SVG can't read CSS vars.
 const ISO_COLORS: Record<Event['status'], { side: string; dark: string }> = {
-  live: { side: '#D85A30', dark: '#9c3d1d' },
-  upcoming: { side: '#1D9E75', dark: '#136b4f' },
-  past: { side: '#9CA3AF', dark: '#6b7280' },
+  live: { side: '#FF5A7A', dark: '#b83452' },
+  upcoming: { side: '#0F9678', dark: '#0a6350' },
+  past: { side: '#8A938E', dark: '#5c635e' },
 };
 
-// Map layer palette per theme (concrete colours — MapLibre paint can't read CSS vars)
+// Map layer palette per theme (concrete colours — MapLibre paint can't read CSS
+// vars). v4 identity: coral live, aqua-teal upcoming, deep-map-night in dark.
 const PIN = {
-  light: { live: '#D85A30', upcoming: '#1D9E75', past: '#B4ADA0', stroke: '#F7F5EF', cluster: '#0F6E56', clusterText: '#F7F5EF' },
-  dark: { live: '#E9744A', upcoming: '#2EC592', past: '#6b6a64', stroke: '#161614', cluster: '#2AC296', clusterText: '#0d0d0c' },
+  light: { live: '#FF5A7A', upcoming: '#0F9678', past: '#B7B2A6', stroke: '#F7F4EC', cluster: '#0B6E60', clusterText: '#F7F4EC' },
+  dark: { live: '#FF6E88', upcoming: '#16C29B', past: '#5c635e', stroke: '#071114', cluster: '#20F4D8', clusterText: '#071114' },
 };
 
 function styleUrl(theme: 'light' | 'dark'): string {

@@ -15,19 +15,30 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        bg: withVar('--bg'),
         paper: withVar('--paper'),
         surface: withVar('--surface'),
         ink: withVar('--ink'),
         sub: withVar('--sub'),
-        // v4 semantic aliases — surface-1 (base) / surface-2 (raised) name the
-        // same two layers `paper`/`surface` already are; kept as separate
-        // Tailwind keys so v4 components can use the vocabulary the brief
-        // specifies without redefining the underlying values.
+        muted: withVar('--muted'),
+        // Surface layers — 1 = page/paper, 2 = raised card/inset.
         'surface-1': withVar('--paper'),
-        'surface-2': withVar('--surface'),
+        'surface-2': withVar('--surface-2'),
         info: withVar('--info'),
         hairline: withVar('--hairline'),
+        // WhatsVP identity accents (v4 redesign) — the neon/social language.
+        brand: withVar('--brand'),
+        'brand-2': withVar('--brand-2'),
+        aqua: withVar('--aqua'),
+        lime: withVar('--lime'),
+        violet: withVar('--violet'),
+        creator: withVar('--creator'),
+        gold: withVar('--gold'),
+        money: withVar('--money'),
+        success: withVar('--success'),
+        'map-night': withVar('--map-night'),
         'bubble-me': withVar('--bubble-me'),
+        'bubble-other': withVar('--bubble-other'),
         ok: withVar('--ok'),
         warn: withVar('--warn'),
         danger: withVar('--danger'),
@@ -50,34 +61,33 @@ const config: Config = {
           800: '#0A4837',
           900: '#073A2C',
         },
+        // live now = the new signal coral (#FF5A7A family). DEFAULT is
+        // var-driven so it flips light/dark; the ramp gives fixed accent steps.
         live: {
           DEFAULT: withVar('--live'),
-          50: '#FDF1EC',
-          100: '#FADDD0',
-          200: '#F4B69C',
-          300: '#ED8F68',
-          400: '#E4713F',
-          500: '#D85A30',
-          600: '#B84523',
-          700: '#96371C',
-          800: '#782C16',
-          900: '#602311',
+          50: '#FFE9EE',
+          100: '#FFC9D5',
+          200: '#FF9DB2',
+          300: '#FF7291',
+          400: '#FF5A7A',
+          500: '#FF3D63',
+          600: '#E22450',
+          700: '#B81A40',
+          800: '#8E1533',
+          900: '#5E0E22',
         },
-        // "coral" is the brief's generic name for the same hue `live` already
-        // carries in this codebase (an event being live now) — added as an
-        // alias scale for v4 components (dock ring, badges) that want the
-        // generic accent name rather than the event-status one.
         coral: {
-          50: '#FDF1EC',
-          100: '#FADDD0',
-          200: '#F4B69C',
-          300: '#ED8F68',
-          400: '#E4713F',
-          500: '#D85A30',
-          600: '#B84523',
-          700: '#96371C',
-          800: '#782C16',
-          900: '#602311',
+          DEFAULT: withVar('--coral'),
+          50: '#FFE9EE',
+          100: '#FFC9D5',
+          200: '#FF9DB2',
+          300: '#FF7291',
+          400: '#FF5A7A',
+          500: '#FF3D63',
+          600: '#E22450',
+          700: '#B81A40',
+          800: '#8E1533',
+          900: '#5E0E22',
         },
         upcoming: withVar('--upcoming'),
       },
@@ -90,15 +100,17 @@ const config: Config = {
           'sans-serif',
         ],
       },
-      // v3 design-system type scale — opt in with e.g. text-body / text-h1.
+      // WhatsVP type scale (v4) — display → micro. Headings tighten tracking
+      // for a premium feel; body stays comfortable.
       fontSize: {
         micro: ['12px', { lineHeight: '1.45' }],
         caption: ['13.5px', { lineHeight: '1.45' }],
-        body: ['15px', { lineHeight: '1.45' }],
+        body: ['15px', { lineHeight: '1.5' }],
         callout: ['17px', { lineHeight: '1.4' }],
-        h3: ['20px', { lineHeight: '1.3' }],
-        h2: ['26px', { lineHeight: '1.25' }],
-        h1: ['32px', { lineHeight: '1.2' }],
+        h3: ['20px', { lineHeight: '1.3', letterSpacing: '-0.01em' }],
+        h2: ['26px', { lineHeight: '1.22', letterSpacing: '-0.015em' }],
+        h1: ['32px', { lineHeight: '1.15', letterSpacing: '-0.02em' }],
+        display: ['44px', { lineHeight: '1.02', letterSpacing: '-0.03em' }],
       },
       // v3 radii — controls/cards/sheets. Existing rounded-xl etc. still work;
       // new components should prefer these named scales.

@@ -44,7 +44,7 @@ export default function Dock({ active, liveCount, hasUnreadChat, onScenes, onGui
         <button
           onClick={onMapOrb}
           aria-label={active === null ? 'Recenter on me' : 'Back to map'}
-          className="relative w-[76px] h-[76px] rounded-full bg-teal text-white shadow-xl ring-[3px] ring-paper
+          className="relative w-[76px] h-[76px] rounded-full grad-brand text-white shadow-xl ring-[3px] ring-paper glow-aqua
                      flex items-center justify-center active:scale-95 transition-transform"
         >
           <LiveRing count={liveCount} />
@@ -82,9 +82,11 @@ function DockItem({
       className="relative flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 min-h-11 transition-colors"
       aria-current={active ? 'page' : undefined}
     >
-      <span className={active ? 'text-teal' : 'text-ink/50'}>{children}</span>
-      {badge && <span className="absolute top-1.5 right-[calc(50%-15px)] w-2 h-2 rounded-full bg-danger" aria-hidden />}
-      <span className={`text-[10px] font-medium ${active ? 'text-teal' : 'text-ink/50'}`}>{label}</span>
+      {/* Active tab gets a small aqua indicator dot above the icon + brand-2 tint */}
+      {active && <span className="absolute top-1 w-1 h-1 rounded-full bg-brand-2" aria-hidden />}
+      <span className={`transition-transform ${active ? 'text-brand-2 scale-105' : 'text-ink/45'}`}>{children}</span>
+      {badge && <span className="absolute top-1.5 right-[calc(50%-15px)] w-2 h-2 rounded-full bg-coral ring-2 ring-[color:var(--glass-clear-bg)]" aria-hidden />}
+      <span className={`text-[10px] font-medium ${active ? 'text-brand-2' : 'text-ink/45'}`}>{label}</span>
     </button>
   );
 }
@@ -103,8 +105,8 @@ function LiveRing({ count }: { count: number }) {
         cy="36"
         r={RING_R}
         fill="none"
-        stroke="rgb(var(--danger))"
-        strokeWidth="3"
+        stroke="rgb(var(--live))"
+        strokeWidth="3.5"
         strokeLinecap="round"
         strokeDasharray={`${dash} ${slot - dash}`}
       />

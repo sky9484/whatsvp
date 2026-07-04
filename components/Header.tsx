@@ -24,8 +24,8 @@ export default function Header({ onGuilds, onOrganize, onChat, onOpenSettings }:
     <header className="glass fixed top-0 left-0 right-0 z-40 h-14 flex items-center justify-between px-4 sm:px-6">
       {/* Wordmark + tagline (tagline hidden on mobile to keep the bar slim) */}
       <div className="flex-none flex items-baseline gap-2 select-none">
-        <span className="font-semibold text-[17px] text-ink tracking-tight">
-          Whats<span className="text-teal">VP</span>
+        <span className="font-bold text-[18px] text-ink tracking-tight">
+          Whats<span className="text-grad-brand">VP</span>
         </span>
         <span className="hidden lg:inline text-xs text-sub">{TAGLINE}</span>
       </div>

@@ -5,71 +5,178 @@
 /* MapLibre GL JS styles */
 @import 'maplibre-gl/dist/maplibre-gl.css';
 
-/* ── CSS variables (v3 design tokens) ───────────────────────────────────────────
-   Space-separated RGB channels drive the Tailwind theme colours; `--color-*`
-   aliases keep the raw CSS below (pins, iso, drawers) theme-aware for free.
-   `hairline` is the token the rest of the codebase calls `line` in the brief —
-   kept as-is since it's used across every existing border-hairline utility. */
+/* ── WhatsVP identity (v4 redesign) ─────────────────────────────────────────────
+   Original palette — a premium "live city map" system, not the old cream/green.
+   Every value is space-separated RGB so Tailwind utilities take an /alpha.
+   Design law: BRAND is a deep aqua-teal that stays white-text-safe for filled
+   CTAs; the neon accents (aqua/lime/coral/violet/gold) are the glow/ring/
+   gradient/social language, never white-text fills. Existing token names
+   (paper/ink/surface/sub/teal/live/upcoming/hairline/bubble-me/ok/warn/danger)
+   are kept + re-valued so every screen re-skins with zero component edits;
+   new names (brand/aqua/lime/coral/violet/creator/gold/money/surface-2/muted/
+   map-night/bubble-other) extend the vocabulary. */
 :root {
-  --paper: 247 245 239;      /* #F7F5EF */
-  --surface: 255 255 255;    /* #FFFFFF — raised cards over paper */
-  --ink: 27 27 24;           /* #1B1B18 */
-  --sub: 106 106 98;         /* #6A6A62 — secondary/subdued text */
-  --hairline: 228 225 216;   /* #E4E1D8 ("line") */
-  --teal: 15 110 86;         /* #0F6E56 brand */
-  --live: 216 90 48;         /* #D85A30 */
-  --upcoming: 29 158 117;    /* #1D9E75 */
-  --info: 24 95 165;         /* #185FA5 */
+  /* Light — premium, clean, soft (Soft Paper base) */
+  --bg: 247 244 236;         /* #F7F4EC page */
+  --paper: 247 244 236;      /* alias of --bg for legacy utilities */
+  --surface: 255 255 255;    /* raised drawers/cards */
+  --surface-2: 255 255 255;  /* insets / them-bubbles (border does the work) */
+  --ink: 18 24 27;           /* #12181B */
+  --sub: 124 133 127;        /* #7C857F muted stone */
+  --muted: 124 133 127;      /* alias */
+  --hairline: 231 227 216;   /* #E7E3D8 */
+
+  --brand: 11 110 96;        /* #0B6E60 deep aqua-teal — white-text safe */
+  --teal: 11 110 96;         /* legacy alias of brand */
+  --brand-2: 13 173 152;     /* #0DAD98 brighter aqua-teal for accents on light */
+  --aqua: 32 244 216;        /* #20F4D8 electric aqua — glow/ring/gradient only */
+  --lime: 140 209 30;        /* #8CD11E social lime (deepened for light contrast) */
+  --coral: 255 90 122;       /* #FF5A7A signal coral */
+  --live: 255 90 122;        /* live now = coral */
+  --violet: 124 74 232;      /* #7C4AE8 creator violet (deepened for light) */
+  --creator: 124 74 232;
+  --gold: 214 154 42;        /* #D69A2A reward gold (deepened for light text) */
+  --money: 15 150 120;       /* #0F9678 confident money teal */
+  --upcoming: 15 150 120;    /* upcoming = money teal, distinct from coral-live */
+  --info: 46 125 209;        /* #2E7DD1 */
+  --success: 23 160 110;     /* #17A06E */
+  --ok: 23 160 110;
+  --warn: 200 138 20;        /* #C88A14 */
+  --danger: 214 56 62;       /* #D6383E true red (distinct from social coral) */
+  --map-night: 7 17 20;      /* #071114 */
+
+  --bubble-me: 11 110 96;    /* brand fill, white text */
+  --bubble-other: 255 255 255;
+
   color-scheme: light;
 
-  /* v4 P1 — place-anchored glass + semantic aliases. Tinted paper, never
-     gray: the whole point is that glass panels read as "this app's paper",
-     not a neutral OS material. */
-  --glass-bg: rgba(247, 245, 239, 0.58);
-  --glass-brd: rgba(27, 27, 24, 0.08);
-  /* Chat bubble colours (defined now per the v4 spec; RoomView isn't
-     restyled to use them until P6's chat visual pass). */
-  --bubble-me: 15 110 86;    /* #0F6E56 — same as light --teal */
-  --ok: 29 158 117;          /* alias of --upcoming */
-  --warn: 194 132 29;        /* #C2841D */
-  --danger: 216 90 48;       /* alias of --live */
+  --glass-bg: rgba(247, 244, 236, 0.6);
+  --glass-brd: rgba(18, 24, 27, 0.08);
 }
 
 .dark {
-  --paper: 20 20 18;         /* #141412 */
-  --surface: 29 29 26;       /* #1D1D1A */
-  --ink: 242 240 234;        /* #F2F0EA */
-  --sub: 156 155 146;        /* #9C9B92 */
-  --hairline: 44 44 40;      /* #2C2C28 ("line") */
-  --teal: 42 194 150;        /* brighter for dark bg */
-  --live: 232 113 74;        /* #E8714A — luminance-lifted */
-  --upcoming: 55 185 140;    /* #37B98C — luminance-lifted */
-  --info: 74 143 209;        /* luminance-lifted */
+  /* Dark — a live city map at night (Deep Map Night base) */
+  --bg: 7 17 20;             /* #071114 */
+  --paper: 7 17 20;
+  --surface: 13 23 27;       /* #0D171B raised */
+  --surface-2: 16 30 35;     /* #101E23 insets/them-bubbles */
+  --ink: 233 241 238;        /* #E9F1EE cool paper-white */
+  --sub: 138 147 142;        /* #8A938E */
+  --muted: 138 147 142;
+  --hairline: 28 42 47;      /* #1C2A2F */
+
+  --brand: 12 140 119;       /* #0C8C77 — stays usable with white text on night */
+  --teal: 12 140 119;
+  --brand-2: 34 211 184;     /* #22D3B8 */
+  --aqua: 32 244 216;        /* #20F4D8 — neon glow pops on night */
+  --lime: 183 255 90;        /* #B7FF5A */
+  --coral: 255 110 136;      /* #FF6E88 */
+  --live: 255 110 136;
+  --violet: 155 117 247;     /* #9B75F7 */
+  --creator: 155 117 247;
+  --gold: 255 215 119;       /* #FFD777 */
+  --money: 22 194 155;       /* #16C29B */
+  --upcoming: 22 194 155;
+  --info: 74 143 209;
+  --success: 34 200 142;     /* #22C88E */
+  --ok: 34 200 142;
+  --warn: 240 178 62;        /* #F0B23E */
+  --danger: 255 90 95;       /* #FF5A5F */
+  --map-night: 7 17 20;
+
+  --bubble-me: 12 140 119;
+  --bubble-other: 16 30 35;
+
   color-scheme: dark;
 
-  --glass-bg: rgba(24, 24, 22, 0.55);
-  --glass-brd: rgba(242, 240, 234, 0.10);
-  --bubble-me: 18 133 106;   /* #12856A — muted for dark bg */
-  --ok: 55 185 140;
-  --warn: 224 168 74;        /* #E0A84A */
-  --danger: 232 113 74;
+  --glass-bg: rgba(10, 20, 24, 0.55);
+  --glass-brd: rgba(233, 241, 238, 0.1);
 }
 
 :root,
 .dark {
+  --color-bg: rgb(var(--bg));
   --color-paper: rgb(var(--paper));
   --color-surface: rgb(var(--surface));
+  --color-surface-2: rgb(var(--surface-2));
   --color-ink: rgb(var(--ink));
   --color-sub: rgb(var(--sub));
+  --color-muted: rgb(var(--muted));
   --color-teal: rgb(var(--teal));
+  --color-brand: rgb(var(--brand));
+  --color-brand-2: rgb(var(--brand-2));
+  --color-aqua: rgb(var(--aqua));
+  --color-lime: rgb(var(--lime));
+  --color-coral: rgb(var(--coral));
   --color-live: rgb(var(--live));
+  --color-violet: rgb(var(--violet));
+  --color-creator: rgb(var(--creator));
+  --color-gold: rgb(var(--gold));
+  --color-money: rgb(var(--money));
   --color-upcoming: rgb(var(--upcoming));
   --color-info: rgb(var(--info));
-  --color-hairline: rgb(var(--hairline));
-  --color-bubble-me: rgb(var(--bubble-me));
+  --color-success: rgb(var(--success));
   --color-ok: rgb(var(--ok));
   --color-warn: rgb(var(--warn));
   --color-danger: rgb(var(--danger));
+  --color-hairline: rgb(var(--hairline));
+  --color-map-night: rgb(var(--map-night));
+  --color-bubble-me: rgb(var(--bubble-me));
+  --color-bubble-other: rgb(var(--bubble-other));
+
+  /* ── WhatsVP gradient language ─────────────────────────────────────────────
+     Each social/functional context has its own two-stop gradient. */
+  --grad-live: linear-gradient(135deg, rgb(var(--aqua)), rgb(var(--lime)));
+  --grad-now: linear-gradient(135deg, rgb(var(--coral)), rgb(var(--gold)));
+  --grad-creator: linear-gradient(135deg, rgb(var(--violet)), rgb(var(--coral)));
+  --grad-money: linear-gradient(135deg, rgb(var(--brand-2)), rgb(var(--gold)));
+  --grad-guild: linear-gradient(135deg, rgb(var(--aqua)), rgb(var(--violet)));
+  --grad-brand: linear-gradient(135deg, rgb(var(--brand-2)), rgb(var(--brand)));
+}
+
+/* ── Gradient language utilities ────────────────────────────────────────────── */
+.grad-live { background-image: var(--grad-live); }
+.grad-now { background-image: var(--grad-now); }
+.grad-creator { background-image: var(--grad-creator); }
+.grad-money { background-image: var(--grad-money); }
+.grad-guild { background-image: var(--grad-guild); }
+.grad-brand { background-image: var(--grad-brand); }
+
+/* Gradient text (wordmark, hero numerals) — clip a gradient to the glyphs. */
+.text-grad-brand,
+.text-grad-live,
+.text-grad-money {
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+.text-grad-brand { background-image: var(--grad-brand); }
+.text-grad-live { background-image: var(--grad-live); }
+.text-grad-money { background-image: var(--grad-money); }
+
+/* A soft neon glow ring for live/social accents (map orb, live pins, avatars). */
+.glow-aqua { box-shadow: 0 0 0 1px rgb(var(--aqua) / 0.4), 0 0 18px rgb(var(--aqua) / 0.45); }
+.glow-coral { box-shadow: 0 0 0 1px rgb(var(--coral) / 0.4), 0 0 18px rgb(var(--coral) / 0.5); }
+
+/* ── Skeleton shimmer (premium loading states, Phase 3) ─────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--ink) / 0.05) 25%,
+    rgb(var(--ink) / 0.10) 37%,
+    rgb(var(--ink) / 0.05) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
 }
 
 html,

@@ -5,16 +5,17 @@ import QRCode from 'qrcode';
 import { useAuth } from '@/lib/auth';
 import { useMoney } from '@/lib/useMoney';
 import { approxRM } from '@/lib/money';
+import { SUI_NETWORK } from '@/lib/sui';
 import SendMoney from './SendMoney';
 import { MONEY } from '@/lib/copy';
 
 /**
- * The money surface (v4 P5) — lives in Settings (passes the auntie test:
- * "Balance", "Send", "≈ RM", "@handle", never wallet/token/crypto). Balance +
- * Send + a claimable @handle + a Receive QR (encodes the address, so a payer's
- * app can fill it in). No dedicated "wallet screen" — money stays anchored to
- * Settings/events/guilds per the scope law. No-ops cleanly until USDC is
- * configured for the network.
+ * The money surface (v5 fintech pass) — a premium balance card in Settings.
+ * Passes the auntie test: "Balance", "Send", "≈ RM", "@handle", never
+ * wallet/token/crypto. When USDC isn't configured for the network (e.g.
+ * testnet with no type set) it shows an HONEST "activates on mainnet" state
+ * rather than vanishing — Send is disabled, but Receive + @handle (pure
+ * identity, no money movement) still work.
  */
 export default function MoneyCard() {
   const { profile, token } = useAuth();
@@ -34,11 +35,9 @@ export default function MoneyCard() {
 
   useEffect(() => {
     if (showReceive && profile?.sui_address) {
-      QRCode.toDataURL(profile.sui_address, { margin: 1, width: 220 }).then(setQr).catch(() => setQr(null));
+      QRCode.toDataURL(profile.sui_address, { margin: 1, width: 240 }).then(setQr).catch(() => setQr(null));
     }
   }, [showReceive, profile?.sui_address]);
-
-  if (!configured) return null;
 
   const claimHandle = async () => {
     if (!token) return;
@@ -65,45 +64,75 @@ export default function MoneyCard() {
   const rm = balanceUsdc ? approxRM(balanceUsdc, usdToMyr) : null;
 
   return (
-    <div className="rounded-xl border border-hairline p-3.5">
-      <div className="flex items-baseline justify-between">
-        <span className="text-sm font-medium text-ink">{MONEY.balanceLabel}</span>
-        <span className="text-right">
-          <span className="text-sm font-semibold text-ink">{balanceUsdc == null ? '—' : `${balanceUsdc} USDC`}</span>
-          {rm && <span className="block text-[11px] text-ink/50">{rm}</span>}
-        </span>
-      </div>
+    <div className="rounded-2xl border border-hairline overflow-hidden">
+      {/* Balance panel — money gradient wash, large number, network chip */}
+      <div className="relative p-4 grad-money">
+        <div className="absolute inset-0 bg-surface/85" aria-hidden />
+        <div className="relative">
+          <div className="flex items-center justify-between">
+            <span className="text-caption font-medium text-ink/60">{MONEY.balanceLabel}</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-ink/[0.06] text-ink/50">
+              {SUI_NETWORK}
+            </span>
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-h1 font-bold text-ink tabular-nums">{balanceUsdc ?? (configured ? '0' : '—')}</span>
+            <span className="text-sm font-medium text-ink/40">USDC</span>
+          </div>
+          <p className="text-caption text-ink/50 min-h-[1.1rem]">
+            {configured ? rm ?? '≈ RM —' : 'Payments activate on mainnet — you’re on testnet.'}
+          </p>
 
-      <div className="mt-3 flex gap-2">
-        <button onClick={() => setShowSend(true)} className="flex-1 py-2 rounded-lg bg-teal text-white text-sm font-semibold hover:bg-teal/90">{MONEY.send}</button>
-        <button onClick={() => setShowReceive((v) => !v)} className="flex-1 py-2 rounded-lg border border-hairline text-sm font-medium text-ink hover:bg-ink/5">{MONEY.receive}</button>
-      </div>
-
-      {showReceive && profile?.sui_address && (
-        <div className="mt-3 pt-3 border-t border-hairline flex flex-col items-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {qr && <img src={qr} alt="Receive code" className="w-40 h-40 rounded-lg" />}
-          {handle && <p className="mt-2 text-sm font-medium text-teal">@{handle}</p>}
-          <p className="text-[11px] text-ink/40">{MONEY.receiveHint}</p>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => setShowSend(true)}
+              disabled={!configured}
+              className="flex-1 py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {MONEY.send}
+            </button>
+            <button
+              onClick={() => setShowReceive((v) => !v)}
+              className="flex-1 py-2.5 rounded-xl border border-hairline bg-surface/60 text-sm font-medium text-ink hover:bg-ink/5 transition-colors"
+            >
+              {MONEY.receive}
+            </button>
+          </div>
         </div>
-      )}
+      </div>
 
-      {/* @handle claim */}
-      <div className="mt-3 pt-3 border-t border-hairline">
+      <div className="p-3.5 space-y-3">
+        {showReceive && profile?.sui_address && (
+          <div className="flex flex-col items-center pb-1">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {qr && <img src={qr} alt="Receive code" className="w-44 h-44 rounded-xl border border-hairline" />}
+            {handle && <p className="mt-2 text-sm font-semibold text-brand">@{handle}</p>}
+            <p className="text-[11px] text-ink/40">{MONEY.receiveHint}</p>
+          </div>
+        )}
+
+        {/* @handle — pure identity, works regardless of network config */}
         {handle ? (
-          <p className="text-xs text-ink/60">Your handle: <span className="font-medium text-teal">@{handle}</span></p>
+          <div className="flex items-center justify-between">
+            <span className="text-caption text-ink/50">Your handle</span>
+            <span className="text-sm font-semibold text-brand">@{handle}</span>
+          </div>
         ) : (
           <div>
-            <p className="text-xs font-medium text-ink/60 mb-1.5">{MONEY.claimHandleTitle}</p>
+            <p className="text-caption font-medium text-ink/60 mb-1.5">{MONEY.claimHandleTitle}</p>
             <div className="flex gap-2">
               <span className="flex items-center text-sm text-ink/40">@</span>
               <input
                 value={handleInput}
                 onChange={(e) => setHandleInput(e.target.value)}
                 placeholder={MONEY.claimHandlePlaceholder}
-                className="flex-1 px-3 py-1.5 rounded-lg border border-hairline bg-paper text-sm focus:outline-none focus:ring-2 focus:ring-teal/30"
+                className="flex-1 px-3 py-1.5 rounded-lg border border-hairline bg-paper text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
-              <button onClick={claimHandle} disabled={claiming || !handleInput.trim()} className="px-3 py-1.5 rounded-lg bg-ink/[0.06] text-ink text-sm font-medium hover:bg-ink/10 disabled:opacity-50">
+              <button
+                onClick={claimHandle}
+                disabled={claiming || !handleInput.trim()}
+                className="px-3 py-1.5 rounded-lg bg-ink/[0.06] text-ink text-sm font-medium hover:bg-ink/10 disabled:opacity-50"
+              >
                 {MONEY.claimHandleCta}
               </button>
             </div>

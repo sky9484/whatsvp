@@ -331,12 +331,14 @@ function SuccessView({
     <div className="p-6 pt-10 text-center">
       <div className="relative mx-auto w-28 h-28">
         {!reducedMotion && <Confetti />}
+        {/* Soft gradient halo behind the collected stamp */}
+        {!pending && <div className="absolute -inset-3 rounded-full grad-brand opacity-20 blur-xl" aria-hidden />}
         {!pending && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={`/api/stamp-image/${event.id}`}
             alt=""
-            className={`w-28 h-28 rounded-full shadow-lg ${reducedMotion ? '' : 'stamp-rotate-settle'}`}
+            className={`relative w-28 h-28 rounded-full shadow-lg glow-aqua ${reducedMotion ? '' : 'stamp-rotate-settle'}`}
           />
         )}
         {pending && (
@@ -346,7 +348,7 @@ function SuccessView({
         )}
       </div>
 
-      <h2 className="mt-5 text-h3 font-bold text-ink">{pending ? REGISTER.successTitlePending : REGISTER.successTitle}</h2>
+      <h2 className="mt-5 text-h2 font-bold text-ink">{pending ? REGISTER.successTitlePending : REGISTER.successTitle}</h2>
       <p className="mt-1 text-sm text-ink/60">{pending ? REGISTER.successBodyPending : REGISTER.successBody}</p>
 
       {result.claimUrl && (

@@ -27,7 +27,7 @@ export default function Dock({ active, liveCount, hasUnreadChat, onScenes, onGui
   return (
     <nav
       className="md:hidden fixed left-3 right-3 bottom-[calc(env(safe-area-inset-bottom)+10px)] z-40
-                 glass rounded-[22px] shadow-lg flex items-stretch justify-around px-1"
+                 glass-clear rounded-[24px] shadow-lg flex items-stretch justify-around px-1"
       aria-label="Primary"
     >
       <DockItem label="Scenes" active={active === 'scenes'} onClick={onScenes}>
@@ -37,18 +37,20 @@ export default function Dock({ active, liveCount, hasUnreadChat, onScenes, onGui
         <GuildIcon active={active === 'guilds'} />
       </DockItem>
 
-      {/* Map orb — raised 16px above the bar, overlapping it */}
-      <div className="relative flex-none w-16 -mt-5 flex flex-col items-center">
+      {/* Map orb — the product's heartbeat: a 76px circle raised well above the
+          bar so it visibly overflows the container (v4 redesign). A paper ring
+          around it separates the orb from the map + the glass bar behind it. */}
+      <div className="relative flex-none w-[76px] -mt-8 flex flex-col items-center">
         <button
           onClick={onMapOrb}
           aria-label={active === null ? 'Recenter on me' : 'Back to map'}
-          className="relative w-16 h-16 rounded-full bg-teal text-white shadow-lg
+          className="relative w-[76px] h-[76px] rounded-full bg-teal text-white shadow-xl ring-[3px] ring-paper
                      flex items-center justify-center active:scale-95 transition-transform"
         >
           <LiveRing count={liveCount} />
           <MapGlyph />
         </button>
-        <span className="mt-0.5 text-[10px] font-medium text-ink/50">Map</span>
+        <span className="-mt-0.5 text-[10px] font-medium text-ink/50">Map</span>
       </div>
 
       <DockItem label="Chat" active={active === 'chat'} onClick={onChat} badge={hasUnreadChat}>
@@ -112,7 +114,7 @@ function LiveRing({ count }: { count: number }) {
 
 function MapGlyph() {
   return (
-    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path
         strokeLinecap="round"
         strokeLinejoin="round"

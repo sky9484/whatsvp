@@ -74,16 +74,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<AuthStatus>('idle');
   const [error, setError] = useState<string | null>(null);
+  // Dev preview session address (see login()) — overrides the real wallet
+  // address when there is none. Always null in production.
+  const [devAddress, setDevAddress] = useState<string | null>(null);
 
   // Track which address we've already authed to avoid re-posting on every render.
   const authedAddressRef = useRef<string | null>(null);
 
   const googleWallet = wallets.find((w) => isGoogleWallet(w));
-  const canLogin = Boolean(googleWallet);
+  // Dev-only preview login: lets you use the logged-in app + iterate on design
+  // WITHOUT standing up Enoki/Google/Supabase. Never active in production, and
+  // only when explicitly opted in via NEXT_PUBLIC_DEV_LOGIN=1. It populates the
+  // auth context client-side with a throwaway profile — no server, no signature,
+  // no real address; token stays null so nothing pretends to have a real session.
+  const devLoginEnabled =
+    process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_DEV_LOGIN === '1' && !googleWallet;
+  const canLogin = Boolean(googleWallet) || devLoginEnabled;
 
   const login = useCallback(() => {
     setError(null);
     if (!googleWallet) {
+      if (devLoginEnabled) {
+        // Preview session — 3-day-old account so the money/withdraw 24h gates pass.
+        const addr = '0x00000000000000000000000000000000000000000000000000000000000de71a';
+        setDevAddress(addr);
+        setProfile({
+          id: '00000000-0000-4000-8000-0000000de71a',
+          sui_address: addr,
+          display_name: 'You (preview)',
+          avatar_url: null,
+          created_at: new Date(Date.now() - 3 * 864e5).toISOString(),
+        } as Profile);
+        setStatus('authed');
+        toast.show('Preview login (dev only) — no real account or funds.', 'info');
+        return;
+      }
       setError('Login is not configured yet. Set the Enoki + Google keys.');
       setStatus('error');
       toast.show('Accounts need Enoki + Google keys — see the README to enable login.', 'info');
@@ -99,13 +124,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       }
     );
-  }, [googleWallet, connectMutation, toast]);
+  }, [googleWallet, devLoginEnabled, connectMutation, toast]);
 
   const logout = useCallback(() => {
     disconnectMutation.mutate();
     setProfile(null);
     setToken(null);
     setStatus('idle');
+    setDevAddress(null);
     authedAddressRef.current = null;
   }, [disconnectMutation]);
 
@@ -192,13 +218,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile((prev) => (prev ? { ...prev, ...patch } : prev));
   }, []);
 
+  const effectiveAddress = account?.address ?? devAddress;
   const value: AuthContextValue = {
-    address: account?.address ?? null,
+    address: effectiveAddress,
     profile,
     token,
     status,
     error,
-    isAuthed: status === 'authed' && Boolean(account?.address),
+    isAuthed: status === 'authed' && Boolean(effectiveAddress),
     canLogin,
     login,
     logout,

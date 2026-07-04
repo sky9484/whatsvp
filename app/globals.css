@@ -341,6 +341,39 @@ body {
   }
 }
 
+/* Clear white glass — a brighter, less-tinted variant for the Dock (v4). Reads
+   as frosted white over the map rather than tinted paper. Stronger blur +
+   saturation so the map colour bleeds through as a soft wash. */
+:root {
+  --glass-clear-bg: rgba(255, 255, 255, 0.64);
+  --glass-clear-brd: rgba(255, 255, 255, 0.7);
+}
+.dark {
+  --glass-clear-bg: rgba(30, 30, 28, 0.6);
+  --glass-clear-brd: rgba(242, 240, 234, 0.14);
+}
+.glass-clear {
+  background: var(--glass-clear-bg);
+  border: 1px solid var(--glass-clear-brd);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  contain: paint;
+}
+@media (max-width: 767px) {
+  .glass-clear {
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-clear {
+    background: rgba(255, 255, 255, 0.92);
+  }
+  .dark .glass-clear {
+    background: rgba(30, 30, 28, 0.95);
+  }
+}
+
 /* Dock map-orb live ring — a segmented coral arc, one dash pair per live
    event (capped visually), pulsing gently. Zero live events = no ring at
    all, handled by not rendering the SVG rather than hiding it empty. */

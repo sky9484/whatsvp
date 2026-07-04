@@ -337,12 +337,12 @@ export default function MapContainer() {
       {/* Live-presence indicator — stacks above the search/filter card */}
       {liveCount > 0 && (
         <div className="absolute bottom-[254px] md:bottom-[104px] left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-          <span className="inline-flex items-center gap-2 bg-paper/90 backdrop-blur-md rounded-full pl-2.5 pr-3.5 py-1.5 border border-hairline shadow-lg">
+          <span className="glass inline-flex items-center gap-2 rounded-full pl-2.5 pr-3.5 py-1.5 shadow-lg">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full rounded-full bg-live opacity-70 animate-ping" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-live" />
             </span>
-            <span className="text-[13px] font-medium text-ink">
+            <span className="text-[13px] font-semibold text-ink">
               {liveCount} {liveCount === 1 ? 'spot' : 'spots'} live now
             </span>
           </span>
@@ -359,17 +359,24 @@ export default function MapContainer() {
         </div>
       )}
 
-      {/* Empty state — stacks above the search/filter card */}
+      {/* Empty state — premium glass pill above the search card */}
       {!loading && visibleEvents.length === 0 && (
         <div className="absolute bottom-[254px] md:bottom-[104px] left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-          <div className="bg-paper/90 backdrop-blur-md rounded-xl px-5 py-3 border border-hairline text-sm text-ink/60 text-center shadow">
-            {searchQuery
-              ? `No events matching "${searchQuery}"`
-              : {
-                  past: 'No past events yet',
-                  live: 'No live events right now',
-                  upcoming: 'No upcoming events — check back soon',
-                }[filter]}
+          <div className="glass rounded-2xl px-5 py-3 text-center shadow-lg max-w-[19rem]">
+            <p className="text-sm font-medium text-ink">
+              {searchQuery
+                ? `Nothing matching “${searchQuery}”`
+                : {
+                    past: 'No past events yet',
+                    live: 'Nothing live this second',
+                    upcoming: 'No upcoming events yet',
+                  }[filter]}
+            </p>
+            {!searchQuery && (
+              <p className="mt-0.5 text-[12px] text-ink/50">
+                {filter === 'live' ? 'Check “Upcoming” for what’s next.' : 'Be the first to put one on the map.'}
+              </p>
+            )}
           </div>
         </div>
       )}

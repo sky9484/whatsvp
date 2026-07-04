@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { shortenAddress, formatSui, buildSendSuiTx, isValidSuiAddress, SUI_NETWORK } from '@/lib/sui';
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush, type PushState } from '@/lib/pwa';
 import { useAreaPresence } from '@/lib/usePresence';
+import { MONEY } from '@/lib/copy';
 import AvatarComposite from './AvatarComposite';
 import AvatarBuilder from './AvatarBuilder';
 import MoneyCard from './MoneyCard';
@@ -145,7 +146,7 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
         },
         onError: (e) => {
           setWithdrawBusy(false);
-          setWithdrawError(e.message || 'Transaction failed — try again.');
+          setWithdrawError(e.message || MONEY.failed);
         },
       }
     );

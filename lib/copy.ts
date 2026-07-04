@@ -184,6 +184,16 @@ export const SCENES = {
   recapEmpty: 'No Scenes made it into the recap yet.',
 } as const;
 
+// ── Chat (v4 P6) — short, warm, action-first (§6.2 voice) ─────────────────────
+export const CHAT = {
+  empty: 'Quiet for now — say hi 👋',
+  newDivider: 'New',
+  roomWrapped: "This room's wrapped — see the recap",
+  composerPlaceholder: 'Message',
+  composerReadOnly: 'This room is read-only',
+  sendFailed: "Didn't go through — try again",
+} as const;
+
 // ── Money (v4 P5) — "Send", "Balance", "≈ RM" only; no wallet/token/crypto ─────
 export const MONEY = {
   balanceLabel: 'Balance',
@@ -196,6 +206,7 @@ export const MONEY = {
   confirmSend: 'Confirm & send',
   sending: 'Sending…',
   sentToast: 'Sent ✓',
+  failed: "Didn't go through — try again",
   notEnough: 'Not enough in your balance — receive first.',
   noHandle: 'No one goes by that handle.',
   claimHandleTitle: 'Claim your @handle',

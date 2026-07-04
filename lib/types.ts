@@ -134,7 +134,7 @@ export interface Message {
   body: string;
   created_at: string;
   // Joined for display (optional)
-  profiles?: { display_name: string; avatar_url?: string | null } | null;
+  profiles?: { display_name: string; avatar_url?: string | null; avatar_config?: AvatarConfig | null } | null;
 }
 
 /** One reaction on a message (v3 P4). */

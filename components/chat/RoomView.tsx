@@ -4,9 +4,13 @@ import { useEffect, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Profile, EventPhoto } from '@/lib/types';
 import { useRoom, type RoomRef } from '@/lib/useRoom';
+import { CHAT } from '@/lib/copy';
+import AvatarComposite from '../AvatarComposite';
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮'];
-const GROUP_WINDOW_MS = 3 * 60_000; // consecutive same-sender messages within this window don't repeat the name
+// Consecutive same-sender messages within this window collapse (avatar+name on
+// the first only) — §6.1 spec is ≤2 min.
+const GROUP_WINDOW_MS = 2 * 60_000;
 
 interface RoomViewProps {
   room: RoomRef;
@@ -20,9 +24,7 @@ interface RoomViewProps {
   photos?: EventPhoto[];
   onUploadPhoto?: (file: File) => Promise<void>;
   uploadingPhoto?: boolean;
-  /** Event rooms only, and only when the caller is checked in (v4 P4) — opens
-   * the Scenes camera. Deliberately separate from onUploadPhoto/the icon
-   * above: that gate is "is the room live", this one is "are you here". */
+  /** Event rooms only, checked-in only (v4 P4) — opens the Scenes camera. */
   onAddScene?: () => void;
   /** DM rooms only: sent messages get expires_at = now + 24h. */
   disappearing?: boolean;
@@ -30,7 +32,7 @@ interface RoomViewProps {
   onSent?: (body: string) => void;
 }
 
-/** Shared message list + composer for all three chat tiers — reactions, reply-to, grouping, presence. */
+/** Shared message list + composer for all three chat tiers (v4 P6 visual pass). */
 export default function RoomView({
   room,
   supabase,
@@ -46,11 +48,12 @@ export default function RoomView({
   disappearing,
   onSent,
 }: RoomViewProps) {
-  const { messages, reactions, online, send, react, markRead, senderName } = useRoom(room, supabase, profile, { disappearing });
+  const { messages, reactions, online, lastReadAt, send, react, markRead, senderName } = useRoom(room, supabase, profile, { disappearing });
   const [draft, setDraft] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [openReactionsFor, setOpenReactionsFor] = useState<string | null>(null);
+  const [showTimeFor, setShowTimeFor] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -72,7 +75,7 @@ export default function RoomView({
       await send(body, rt);
       onSent?.(body);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not send');
+      setError(err instanceof Error ? err.message : CHAT.sendFailed);
       setDraft(body);
     }
   };
@@ -82,6 +85,11 @@ export default function RoomView({
     const m = messages.find((x) => x.id === id);
     return m ? `${senderName(m)}: ${m.body.slice(0, 60)}` : null;
   };
+
+  // First message strictly newer than my open-time last-read → the "New" line.
+  const firstUnreadId = lastReadAt
+    ? messages.find((m) => m.profile_id !== profile?.id && m.created_at > lastReadAt)?.id ?? null
+    : null;
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -105,11 +113,11 @@ export default function RoomView({
         </div>
       )}
 
-      {error && <p className="px-4 py-1.5 text-xs text-live bg-live/5">{error}</p>}
+      {error && <p className="px-4 py-1.5 text-xs text-danger bg-danger/5">{error}</p>}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
         {messages.length === 0 ? (
-          <p className="text-center text-sm text-ink/40 mt-8">No messages yet — say hello 👋</p>
+          <p className="text-center text-sm text-ink/40 mt-8">{CHAT.empty}</p>
         ) : (
           messages.map((m, i) => {
             const mine = m.profile_id === profile?.id;
@@ -119,6 +127,7 @@ export default function RoomView({
                 prev.profile_id === m.profile_id &&
                 new Date(m.created_at).getTime() - new Date(prev.created_at).getTime() < GROUP_WINDOW_MS
             );
+            const showDayDivider = !prev || !sameDay(prev.created_at, m.created_at);
             const msgReactions = reactions[m.id] ?? [];
             const reactionCounts = msgReactions.reduce<Record<string, number>>((acc, r) => {
               acc[r.emoji] = (acc[r.emoji] ?? 0) + 1;
@@ -127,75 +136,92 @@ export default function RoomView({
             const snippet = replySnippet(m.reply_to_id);
 
             return (
-              <div key={m.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'} ${grouped ? 'mt-0.5' : 'mt-2.5'} group`}>
-                {!grouped && <span className="text-[11px] text-ink/40 px-1">{senderName(m)}</span>}
-                {snippet && (
-                  <div className="max-w-[80%] mb-0.5 px-2 py-1 rounded-lg bg-ink/[0.04] text-[11px] text-ink/50 truncate border-l-2 border-hairline">
-                    ↩ {snippet}
+              <div key={m.id}>
+                {showDayDivider && (
+                  <div className="flex items-center gap-2 my-3">
+                    <span className="flex-1 h-px bg-hairline" />
+                    <span className="text-[10px] font-medium text-sub uppercase tracking-wide">{dayLabel(m.created_at)}</span>
+                    <span className="flex-1 h-px bg-hairline" />
                   </div>
                 )}
-                <div className="flex items-end gap-1">
+                {m.id === firstUnreadId && (
+                  <div className="flex items-center gap-2 my-2">
+                    <span className="flex-1 h-px bg-live/40" />
+                    <span className="text-[10px] font-semibold text-live uppercase tracking-wide">{CHAT.newDivider}</span>
+                    <span className="flex-1 h-px bg-live/40" />
+                  </div>
+                )}
+
+                <div className={`flex ${mine ? 'justify-end' : 'justify-start'} ${grouped ? 'mt-0.5' : 'mt-2.5'} group`}>
+                  {/* Others: a small avatar rail, shown on the first of a group only */}
                   {!mine && (
-                    <button
-                      onClick={() => setOpenReactionsFor(openReactionsFor === m.id ? null : m.id)}
-                      className="opacity-0 group-hover:opacity-100 text-xs text-ink/30 hover:text-ink/60 transition-opacity"
-                      aria-label="React"
-                    >
-                      🙂
-                    </button>
+                    <div className="w-7 flex-none mr-1.5 self-end">
+                      {!grouped && <AvatarComposite config={m.profiles?.avatar_config} size={24} fallbackInitial={senderName(m)[0]} />}
+                    </div>
                   )}
-                  <div
-                    className={`max-w-[80%] px-3 py-1.5 rounded-2xl text-sm
-                      ${mine ? 'bg-teal text-white rounded-br-sm' : 'bg-ink/[0.07] text-ink rounded-bl-sm'}`}
-                  >
-                    {m.body}
+
+                  <div className={`flex flex-col ${mine ? 'items-end' : 'items-start'} max-w-[78%]`}>
+                    {!grouped && <span className="text-[11px] text-sub px-1 mb-0.5">{senderName(m)}</span>}
+                    {snippet && (
+                      <div className="mb-0.5 px-2 py-1 rounded-lg bg-ink/[0.04] text-[11px] text-sub truncate border-l-2 border-hairline max-w-full">
+                        ↩ {snippet}
+                      </div>
+                    )}
+                    <div className="flex items-end gap-1">
+                      {mine && <ReactButton onClick={() => setOpenReactionsFor(openReactionsFor === m.id ? null : m.id)} />}
+                      <button
+                        onClick={() => setShowTimeFor(showTimeFor === m.id ? null : m.id)}
+                        className={`px-3 py-1.5 text-sm text-left rounded-2xl ${
+                          mine
+                            ? 'bg-bubble-me text-white rounded-br-sm'
+                            : 'bg-surface-2 text-ink border border-hairline rounded-bl-sm'
+                        }`}
+                      >
+                        {m.body}
+                      </button>
+                      {!mine && <ReactButton onClick={() => setOpenReactionsFor(openReactionsFor === m.id ? null : m.id)} />}
+                      <button
+                        onClick={() => setReplyTo(m.id)}
+                        className="opacity-0 group-hover:opacity-100 text-xs text-ink/30 hover:text-ink/60 transition-opacity"
+                        aria-label="Reply"
+                      >
+                        ↩
+                      </button>
+                    </div>
+
+                    {showTimeFor === m.id && <span className="text-[10px] text-sub px-1 mt-0.5">{fullTime(m.created_at)}</span>}
+
+                    {openReactionsFor === m.id && (
+                      <div className="flex gap-1 mt-1 px-1">
+                        {QUICK_REACTIONS.map((e) => (
+                          <button
+                            key={e}
+                            onClick={() => {
+                              void react(m.id, e);
+                              setOpenReactionsFor(null);
+                            }}
+                            className="text-base hover:scale-125 transition-transform"
+                          >
+                            {e}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {Object.keys(reactionCounts).length > 0 && (
+                      <div className="flex gap-1 mt-0.5 px-1">
+                        {Object.entries(reactionCounts).map(([emoji, count]) => (
+                          <button
+                            key={emoji}
+                            onClick={() => void react(m.id, emoji)}
+                            className="text-[11px] px-1.5 py-0.5 rounded-full bg-ink/[0.06] hover:bg-ink/10"
+                          >
+                            {emoji} {count}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <button
-                    onClick={() => setReplyTo(m.id)}
-                    className="opacity-0 group-hover:opacity-100 text-xs text-ink/30 hover:text-ink/60 transition-opacity"
-                    aria-label="Reply"
-                  >
-                    ↩
-                  </button>
-                  {mine && (
-                    <button
-                      onClick={() => setOpenReactionsFor(openReactionsFor === m.id ? null : m.id)}
-                      className="opacity-0 group-hover:opacity-100 text-xs text-ink/30 hover:text-ink/60 transition-opacity"
-                      aria-label="React"
-                    >
-                      🙂
-                    </button>
-                  )}
                 </div>
-                {openReactionsFor === m.id && (
-                  <div className="flex gap-1 mt-1 px-1">
-                    {QUICK_REACTIONS.map((e) => (
-                      <button
-                        key={e}
-                        onClick={() => {
-                          void react(m.id, e);
-                          setOpenReactionsFor(null);
-                        }}
-                        className="text-base hover:scale-125 transition-transform"
-                      >
-                        {e}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {Object.keys(reactionCounts).length > 0 && (
-                  <div className="flex gap-1 mt-0.5 px-1">
-                    {Object.entries(reactionCounts).map(([emoji, count]) => (
-                      <button
-                        key={emoji}
-                        onClick={() => void react(m.id, emoji)}
-                        className="text-[11px] px-1.5 py-0.5 rounded-full bg-ink/[0.06] hover:bg-ink/10"
-                      >
-                        {emoji} {count}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
             );
           })
@@ -203,7 +229,7 @@ export default function RoomView({
       </div>
 
       {replyTo && (
-        <div className="flex items-center justify-between px-3 py-1.5 border-t border-hairline bg-ink/[0.02] text-xs text-ink/60">
+        <div className="flex items-center justify-between px-3 py-1.5 border-t border-hairline bg-ink/[0.02] text-xs text-sub">
           <span className="truncate">Replying to {replySnippet(replyTo)}</span>
           <button onClick={() => setReplyTo(null)} className="text-ink/40 hover:text-ink ml-2" aria-label="Cancel reply">
             ×
@@ -211,7 +237,8 @@ export default function RoomView({
         </div>
       )}
 
-      <form onSubmit={submit} className="flex items-center gap-2 p-3 border-t border-hairline">
+      {/* Composer — glass bar (§6.1). Camera only when checked-in; send morphs to teal on input. */}
+      <form onSubmit={submit} className="glass flex items-center gap-2 p-3 border-t border-hairline">
         {onAddScene && (
           <button
             type="button"
@@ -244,7 +271,7 @@ export default function RoomView({
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={disabled ? disabledHint ?? 'This room is read-only' : placeholder ?? 'Message'}
+          placeholder={disabled ? disabledHint ?? CHAT.composerReadOnly : placeholder ?? CHAT.composerPlaceholder}
           disabled={disabled}
           className="flex-1 px-3.5 py-2 rounded-full border border-hairline bg-ink/[0.04]
                      text-sm focus:outline-none focus:ring-2 focus:ring-teal/30 disabled:opacity-50"
@@ -252,12 +279,38 @@ export default function RoomView({
         <button
           type="submit"
           disabled={!draft.trim() || disabled}
-          className="px-4 py-2 rounded-full bg-teal text-white text-sm font-medium
-                     hover:bg-teal/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className={`px-4 py-2 rounded-full text-sm font-medium transition-colors
+                     ${draft.trim() && !disabled ? 'bg-teal text-white hover:bg-teal/90' : 'bg-ink/10 text-ink/40 cursor-not-allowed'}`}
         >
           Send
         </button>
       </form>
     </div>
   );
+}
+
+function ReactButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="opacity-0 group-hover:opacity-100 text-xs text-ink/30 hover:text-ink/60 transition-opacity" aria-label="React">
+      🙂
+    </button>
+  );
+}
+
+function sameDay(a: string, b: string): boolean {
+  return dayKey(a) === dayKey(b);
+}
+function dayKey(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur' });
+}
+function dayLabel(iso: string): string {
+  const today = dayKey(new Date().toISOString());
+  const yesterday = dayKey(new Date(Date.now() - 864e5).toISOString());
+  const key = dayKey(iso);
+  if (key === today) return 'Today';
+  if (key === yesterday) return 'Yesterday';
+  return new Date(iso).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', timeZone: 'Asia/Kuala_Lumpur' });
+}
+function fullTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kuala_Lumpur' });
 }

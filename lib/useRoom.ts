@@ -32,20 +32,35 @@ export function useRoom(room: RoomRef | null, supabase: SupabaseClient | null, p
   const [messages, setMessages] = useState<Message[]>([]);
   const [reactions, setReactions] = useState<ReactionMap>({});
   const [online, setOnline] = useState<PresenceProfile[]>([]);
+  // Snapshot of my last-read time, captured when the room opens — drives the
+  // "New" divider (v4 P6). Deliberately NOT updated as I read; it holds the
+  // open-time value so the divider stays put while I scroll, and markRead
+  // advances the DB row separately.
+  const [lastReadAt, setLastReadAt] = useState<string | null>(null);
   const profileCache = useRef<Map<string, { display_name: string; avatar_url?: string | null }>>(new Map());
 
   const column = room ? roomColumn(room.type) : null;
 
-  // Load history
+  // Load history + snapshot last-read for the unread divider.
   useEffect(() => {
     if (!supabase || !room || !column) {
       setMessages([]);
       return;
     }
     let cancelled = false;
+    setLastReadAt(null);
+    void supabase
+      .from('room_reads')
+      .select('last_read_at')
+      .eq('profile_id', profile?.id ?? '')
+      .eq('room_key', roomKey(room))
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setLastReadAt(data?.last_read_at ?? null);
+      });
     supabase
       .from('messages')
-      .select('*, profiles(display_name, avatar_url)')
+      .select('*, profiles(display_name, avatar_url, avatar_config)')
       .eq(column, room.id)
       .order('created_at', { ascending: true })
       .limit(150)
@@ -107,7 +122,7 @@ export function useRoom(room: RoomRef | null, supabase: SupabaseClient | null, p
           if (!profileCache.current.has(msg.profile_id)) {
             void supabase
               .from('profiles')
-              .select('display_name, avatar_url')
+              .select('display_name, avatar_url, avatar_config')
               .eq('id', msg.profile_id)
               .maybeSingle()
               .then(({ data }) => {
@@ -157,7 +172,7 @@ export function useRoom(room: RoomRef | null, supabase: SupabaseClient | null, p
       const { data, error } = await supabase
         .from('messages')
         .insert(payload)
-        .select('*, profiles(display_name, avatar_url)')
+        .select('*, profiles(display_name, avatar_url, avatar_config)')
         .single();
       if (error) throw new Error(error.message);
       const msg = data as Message;
@@ -209,5 +224,5 @@ export function useRoom(room: RoomRef | null, supabase: SupabaseClient | null, p
     [profile]
   );
 
-  return { messages, reactions, online, send, react, markRead, senderName };
+  return { messages, reactions, online, lastReadAt, send, react, markRead, senderName };
 }

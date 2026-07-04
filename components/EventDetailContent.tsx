@@ -73,8 +73,10 @@ export default function EventDetailContent({
       ? { cls: 'bg-upcoming text-white', text: 'UPCOMING' }
       : { cls: 'bg-ink/20 text-ink', text: 'PAST' };
 
-  const headerTint =
-    event.status === 'live' ? '#D85A30' : event.status === 'upcoming' ? '#1D9E75' : '#9CA3AF';
+  // Theme-adaptive status tint via CSS vars (v4 P6 hex audit) — no raw hex, and
+  // the gradient now flips correctly in dark mode instead of being pinned to
+  // the light-theme value.
+  const tintVar = event.status === 'live' ? '--live' : event.status === 'upcoming' ? '--upcoming' : '--sub';
 
   return (
     <>
@@ -97,7 +99,7 @@ export default function EventDetailContent({
           ) : (
             <div
               className="relative h-20 rounded-t-2xl flex items-end p-4"
-              style={{ background: `linear-gradient(135deg, ${headerTint}22, ${headerTint}0a)` }}
+              style={{ background: `linear-gradient(135deg, rgb(var(${tintVar}) / 0.13), rgb(var(${tintVar}) / 0.04))` }}
             >
               <span
                 className={`absolute top-3 left-3 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold tracking-wide ${badge.cls}`}

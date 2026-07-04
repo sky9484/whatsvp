@@ -10,6 +10,7 @@ import type { EventRoom, EventPhoto, RawEvent } from '@/lib/types';
 import RoomView from './RoomView';
 import SceneCapture from '../SceneCapture';
 import SplitsPanel from '../SplitsPanel';
+import { CHAT } from '@/lib/copy';
 
 interface EventRoomsProps {
   supabase: SupabaseClient | null;
@@ -39,7 +40,7 @@ const PHASE_LABEL: Record<Phase, string> = {
   soon: 'Opens 24h before',
   live: '● Live',
   'read-only': 'Read-only',
-  archived: 'Archived',
+  archived: 'Wrapped', // §6.2: warmer than "Archived"; full line shown in the recap
 };
 
 /** Tier 2 of Chat 2.0: ephemeral rooms auto-created per event, access = RSVP'd or checked in. */
@@ -225,6 +226,7 @@ function RecapStrip({ photos, supabase }: { photos: EventPhoto[]; supabase: Supa
 
   return (
     <div className="flex-1 overflow-y-auto p-4">
+      <p className="text-sm text-ink/60 mb-3">{CHAT.roomWrapped}</p>
       <h4 className="text-xs font-semibold text-sub uppercase tracking-wide mb-3">Recap</h4>
       {sorted.length === 0 ? (
         <p className="text-sm text-ink/40 text-center py-10">No photos were dropped in this room.</p>
